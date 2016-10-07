@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# House Keeping
+if [ ! -d "$HOME/.backup" ]; then
+	mkdir $HOME/.backup
+fi
+cd $HOME/.backup
+
+# Backup EFI System Partition
+sudo tar -cvzf $HOME/.backup/backup-esp-$(uname -n)-$(date +%s).tar.gz /boot/efi
