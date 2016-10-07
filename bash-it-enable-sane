@@ -1,0 +1,7 @@
+#!/bin/bash
+echo "enabling bash-it sane defaults..."
+. $HOME/.dotfiles/.bash-it/bash_it.sh
+bash-it enable alias general
+bash-it enable completion bash-it system
+bash-it enable plugin alias-completion base
+echo "...done"
