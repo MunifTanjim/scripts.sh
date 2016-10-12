@@ -1,4 +1,5 @@
 #!/bin/bash
+unset BASH_IT_AUTOMATIC_RELOAD_AFTER_CONFIG_CHANGE
 echo "enabling bash-it sane defaults..."
 . $HOME/.dotfiles/.bash-it/bash_it.sh
 bash-it enable alias general
