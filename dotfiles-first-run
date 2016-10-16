@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+DOTFILES_DIR=$HOME/.dotfiles
+
+echo "enabling bash-it sane defaults..."
+cd $DOTFILES_DIR
+./scripts/scripts.bash/bash-it-enable-sane
+echo "	...done"
+
+echo "configuring bash-it submodule..."
+cd $DOTFILES_DIR/.bash-it
+if [ `git remote show | grep upstream` ]; then
+	echo "	...bash-it already have upstream remote"
+else
+	echo "	...adding upstream remote"
+	git remote add upstream https://github.com/Bash-it/bash-it.git
+fi
+echo "	...done"
