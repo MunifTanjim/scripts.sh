@@ -2,17 +2,31 @@
 
 DOTFILES_DIR=$HOME/.dotfiles
 
-echo "enabling bash-it sane defaults..."
+echo "configuring local .dotfiles repo..."
 cd $DOTFILES_DIR
-./scripts/scripts.bash/bash-it-enable-sane
+if [ -z `git config --get remote.origin.url | grep bitbucket` ]; then
+	echo "	...setting remote origin url"
+	git config remote.origin.url https://bitbucket.org/MunifTanjim/.dotfiles.git
+fi
+if [ -z `git config --get-all remote.origin.pushurl | grep bitbucket` ]; then
+	echo "	...adding bitbucket pushurl"
+	git config remote.origin.pushurl https://bitbucket.org/MunifTanjim/.dotfiles.git --add
+fi
+if [ -z `git config --get-all remote.origin.pushurl | grep github` ]; then
+	echo "	...adding github pushurl"
+	git config remote.origin.pushurl https://github.com/MunifTanjim/.dotfiles.git --add
+fi
 echo "	...done"
 
-echo "configuring bash-it submodule..."
+echo "configuring local bash-it submodule..."
 cd $DOTFILES_DIR/.bash-it
-if [ `git remote show | grep upstream` ]; then
-	echo "	...bash-it already have upstream remote"
-else
+if [ -z `git remote show | grep upstream` ]; then
 	echo "	...adding upstream remote"
 	git remote add upstream https://github.com/Bash-it/bash-it.git
 fi
+echo "	...done"
+
+echo "enabling bash-it sane defaults..."
+cd $DOTFILES_DIR
+./scripts/scripts.bash/bash-it-enable-sane
 echo "	...done"
