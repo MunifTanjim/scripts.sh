@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
 # House Keeping
-if [ ! -d "$HOME/.backup" ]; then
-	mkdir $HOME/.backup
+BACKUP_DIR="${HOME}/.backup"
+if [ ! -d "${BACKUP_DIR}" ]; then
+	mkdir -p "${BACKUP_DIR}"
 fi
-cd $HOME/.backup
+cd "${BACKUP_DIR}"
 
 # Backup Root Partition
-sudo tar -cvpzf $HOME/.backup/backup-root-$(uname -n)-$(date +%s).tar.gz --exclude={"backup-*.tar.gz","/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found"} --one-file-system /
+sudo tar -cvpzf "${BACKUP_DIR}/backup-root-$(uname -n)-$(date +%s).tar.gz" --exclude={"backup-*.tar.gz","/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found"} --one-file-system /
