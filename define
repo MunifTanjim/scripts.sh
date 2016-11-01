@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+trans $@ | sed -n '/Examples/q;p'
