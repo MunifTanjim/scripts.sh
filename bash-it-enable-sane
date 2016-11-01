@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 unset BASH_IT_AUTOMATIC_RELOAD_AFTER_CONFIG_CHANGE
-source "${HOME}/.dotfiles/.bash-it/bash_it.sh"
+source "${BASH_IT}/bash_it.sh"
 bash-it enable alias general
 bash-it enable completion bash-it system
 bash-it enable plugin alias-completion base

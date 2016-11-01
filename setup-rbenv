@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+_RBENV_DIR="${HOME}/.rbenv"
+if [ -d "${_RBENV_DIR}" ]; then
+	cd "${_RBENV_DIR}"
+	git pull
+else
+	git clone https://github.com/rbenv/rbenv.git "${_RBENV_DIR}"
+	cd "${_RBENV_DIR}" && src/configure && make -C src
+	git clone https://github.com/rbenv/ruby-build.git "${_RBENV_DIR}/plugins/ruby-build"
+fi
