@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # House Keeping
-_BACKUP_DIR="${HOME}/.backup"
+_BACKUP_DIR="${HOME}/data/.backup"
 if [ ! -d "${_BACKUP_DIR}" ]; then
 	mkdir -p "${_BACKUP_DIR}"
 fi
