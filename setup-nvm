@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+# install/update nvm
+# https://github.com/creationix/nvm
+
+_NVM_DIR="${HOME}/.nvm"
+if [ -d "${_NVM_DIR}" ]; then
+	(
+		cd "${_NVM_DIR}"
+		git fetch origin
+		git checkout $(git describe --abbrev=0 --tags --match "v[0-9]*" origin)
+	) && source "${_NVM_DIR}/nvm.sh"
+else
+	(
+		git clone https://github.com/creationix/nvm.git "${_NVM_DIR}"
+		cd "${_NVM_DIR}"
+		git checkout $(git describe --abbrev=0 --tags --match "v[0-9]*" origin)
+	) && source "${_NVM_DIR}/nvm.sh"
+fi
