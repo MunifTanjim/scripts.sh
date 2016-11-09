@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+# https://github.com/yyuu/pyenv
+# https://github.com/yyuu/pyenv-virtualenv
+
+_PYENV_DIR="${HOME}/.pyenv"
+if [ -d "${_PYENV_DIR}" ]; then
+	cd "${_PYENV_DIR}"
+	git pull
+else
+	git clone https://github.com/yyuu/pyenv.git "${_PYENV_DIR}"
+fi
+
+_PYENV_VIRTUALENV_DIR="${_PYENV_DIR}/plugins/pyenv-virtualenv"
+if [ -d "${_PYENV_VIRTUALENV_DIR}" ]; then
+	cd "${_PYENV_VIRTUALENV_DIR}"
+	git pull
+else
+	git clone https://github.com/yyuu/pyenv-virtualenv.git "${_PYENV_VIRTUALENV_DIR}"
+fi
+
+if [ -n "$(which apt)" ]; then
+	sudo apt install -y make build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev xz-utils
+fi
