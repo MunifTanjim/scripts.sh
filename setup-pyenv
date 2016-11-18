@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
+# install/update pyenv
 # https://github.com/yyuu/pyenv
-# https://github.com/yyuu/pyenv-virtualenv
 
 _PYENV_DIR="${HOME}/.pyenv"
 if [ -d "${_PYENV_DIR}" ]; then
