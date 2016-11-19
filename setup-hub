@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+# install/update hub
+# https://github.com/github/hub
+
+# House Keeping
+_GIT_DIR="${HOME}/data/gits"
+if [ ! -d "${_GIT_DIR}" ]; then
+	mkdir -p "${_GIT_DIR}"
+fi
+cd "${_GIT_DIR}"
+
+# Initialization
+if [ ! -d "${_GIT_DIR}/hub" ]; then
+	git clone --depth 1 https://github.com/github/hub.git
+	cd hub
+else
+	cd hub
+	git pull
+fi
+
+# Installation
+make install prefix="$HOME/.local"
