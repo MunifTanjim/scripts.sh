@@ -9,3 +9,4 @@ cd "${_BACKUP_DIR}"
 
 # Backup EFI System Partition
 sudo tar -cvzf "${_BACKUP_DIR}/backup-esp-$(uname -n)-$(date +%s).tar.gz" /boot/efi
+

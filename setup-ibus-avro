@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
 
 # Dependencies Installation
-sudo apt install ibus libibus-1.0-dev automake autoconf gjs ibus-1.0 gir1.2-ibus-1.0
+sudo apt install ibus libibus-1.0-dev automake autoconf gjs ibus-1.0 gir1.2-ibus-1.0 ibus-gtk ibus-gtk3 ibus-clutter ibus-qt4
 
 # House Keeping
 _GIT_DIR="${HOME}/data/gits"
 if [ ! -d "${_GIT_DIR}" ]; then
-	mkdir -p "${_GIT_DIR}"
+  mkdir -p "${_GIT_DIR}"
 fi
 cd "${_GIT_DIR}"
 
 # Initialization
 if [ ! -d "${_GIT_DIR}/ibus-avro" ]; then
-	git clone --depth 1 https://github.com/sarim/ibus-avro.git
-	cd ibus-avro
+  git clone --depth 1 https://github.com/sarim/ibus-avro
+  cd ibus-avro
 else
-	cd ibus-avro
-	git pull
+  cd ibus-avro
+  git pull
 fi
 
 # Installation
 aclocal && autoconf && automake --add-missing
 ./configure --prefix=/usr
 sudo make install
+

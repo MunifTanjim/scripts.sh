@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 
 awk '!/^Command|^Requested|^End|^Error/ { gsub( /\([^()]*\)/ ,"");gsub(/ ,/," ");sub(/^Start-/,""); print}' /var/log/apt/history.log
+

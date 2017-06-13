@@ -2,25 +2,16 @@
 
 echo "configuring local .dotfiles repo..."
 cd "${DOTFILES}"
-if [ -z $(git config --get remote.origin.url | grep bitbucket) ]; then
+if [ -z $(git config --get remote.origin.url | grep github) ]; then
 	echo "	...setting remote origin url"
-	git config remote.origin.url https://bitbucket.org/MunifTanjim/.dotfiles.git
-fi
-if [ -z $(git config --get-all remote.origin.pushurl | grep bitbucket) ]; then
-	echo "	...adding bitbucket pushurl"
-	git config remote.origin.pushurl https://bitbucket.org/MunifTanjim/.dotfiles.git --add
+	git config remote.origin.url https://github.com/MunifTanjim/.dotfiles
 fi
 if [ -z $(git config --get-all remote.origin.pushurl | grep github) ]; then
-	echo "	...adding github pushurl"
-	git config remote.origin.pushurl https://github.com/MunifTanjim/.dotfiles.git --add
+	echo "	...adding github origin pushurl"
+	git config remote.origin.pushurl https://github.com/MunifTanjim/.dotfiles --add
+fi
+if [ -z $(git config --get-all remote.origin.pushurl | grep bitbucket) ]; then
+	echo "	...adding bitbucket origin pushurl"
+	git config remote.origin.pushurl https://bitbucket.org/MunifTanjim/.dotfiles --add
 fi
 
-echo "configuring local bash-it submodule..."
-cd "${BASH_IT}"
-if [ -z $(git remote show | grep upstream) ]; then
-	echo "	...adding upstream remote"
-	git remote add upstream https://github.com/Bash-it/bash-it.git
-fi
-
-echo "enabling bash-it sane defaults..."
-source "${DOTFILES}/scripts/scripts.bash/bash-it-enable-sane"

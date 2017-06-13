@@ -6,11 +6,11 @@
 _RBENV_DIR="${HOME}/.rbenv"
 _RUBY_BUILD_DIR="${_RBENV_DIR}/plugins/ruby-build"
 if [ -d "${_RBENV_DIR}" ]; then
-	cd "${_RBENV_DIR}" && git pull
-	src/configure && make -C src
-	cd "${_RUBY_BUILD_DIR}" && git pull
+  cd "${_RBENV_DIR}" && git pull
+  src/configure && make -C src
+  cd "${_RUBY_BUILD_DIR}" && git pull
 else
-	git clone https://github.com/rbenv/rbenv.git "${_RBENV_DIR}"
-	cd "${_RBENV_DIR}" && src/configure && make -C src
-	git clone https://github.com/rbenv/ruby-build.git "${_RUBY_BUILD_DIR}"
+  git clone https://github.com/rbenv/rbenv "${_RBENV_DIR}"
+  cd "${_RBENV_DIR}" && src/configure && make -C src
+  git clone https://github.com/rbenv/ruby-build "${_RUBY_BUILD_DIR}"
 fi

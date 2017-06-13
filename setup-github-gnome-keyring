@@ -9,40 +9,41 @@ shift
 typeset _GKPATH
 
 __get() {
-	if [ "${_DISTRO}" == "ubuntu" ]; then
-		sudo apt install libgnome-keyring-dev
-		_GKPATH="/usr/share/doc/git/contrib/credential/gnome-keyring"
-	elif [ "${_DISTRO}" == "arch" ]; then
-		sudo pacman -S libgnome-keyring
-		_GKPATH="/usr/share/git/credential/gnome-keyring"
-	else
-		exit
-	fi
+  if [ "${_DISTRO}" == "ubuntu" ]; then
+    sudo apt install libgnome-keyring-dev
+    _GKPATH="/usr/share/doc/git/contrib/credential/gnome-keyring"
+  elif [ "${_DISTRO}" == "arch" ]; then
+    sudo pacman -S libgnome-keyring
+    _GKPATH="/usr/share/git/credential/gnome-keyring"
+  else
+    exit
+  fi
 }
 
 __make() {
-	cd ${_GKPATH}
-	sudo make
+  cd ${_GKPATH}
+  sudo make
 }
 
 __config() {
-	[ -z "${_GKPATH}" ] && return
-	git config --global credential.https://github.com.helper "${_GKPATH}/git-credential-gnome-keyring"
-	git config --global credential.https://gist.github.com.helper "${_GKPATH}/git-credential-gnome-keyring"
-	git config --global credential.https://bitbucket.org.helper "${_GKPATH}/git-credential-gnome-keyring"
+  [ -z "${_GKPATH}" ] && return
+  git config --global credential.https://github.com.helper "${_GKPATH}/git-credential-gnome-keyring"
+  git config --global credential.https://gist.github.com.helper "${_GKPATH}/git-credential-gnome-keyring"
+  git config --global credential.https://bitbucket.org.helper "${_GKPATH}/git-credential-gnome-keyring"
 }
 
 case ${_MODE} in
-	install)
-		__get
-		__make
-		;;
-	config)
-		__config
-		;;
-	*)
-		__get
-		__make
-		__config
-		;;
+  install)
+    __get
+    __make
+    ;;
+  config)
+    __config
+    ;;
+  *)
+    __get
+    __make
+    __config
+    ;;
 esac
+

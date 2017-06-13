@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 
 EXPECTED_SIGNATURE=$(wget -q -O - https://composer.github.io/installer.sig)
 php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
@@ -17,3 +17,4 @@ php composer-setup.php --quiet --install-dir="${INSTALL_DIR}" --filename=compose
 RESULT=$?
 rm composer-setup.php
 exit $RESULT
+

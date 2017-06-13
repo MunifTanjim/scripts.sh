@@ -3,24 +3,24 @@
 # House Keeping
 _GIT_DIR="${HOME}/data/gits"
 if [ ! -d "${_GIT_DIR}" ]; then
-	mkdir -p "${_GIT_DIR}"
+  mkdir -p "${_GIT_DIR}"
 fi
 cd "${_GIT_DIR}"
 
 # Initialization
 if [ ! -d "${_GIT_DIR}/apt-fast" ]; then
-	git clone --depth 1 https://github.com/ilikenwf/apt-fast.git
-	cd apt-fast
+  git clone --depth 1 https://github.com/ilikenwf/apt-fast
+  cd apt-fast
 else
-	cd apt-fast
-	git pull
+  cd apt-fast
+  git pull
 fi
 
 # Installation
 sudo cp apt-fast /usr/bin/
 sudo chmod +x /usr/bin/apt-fast
 if [ ! -f /etc/apt-fast.conf ]; then
-    sudo cp apt-fast.conf /etc
+  sudo cp apt-fast.conf /etc
 fi
 
 # aria2 Plugin installation
@@ -36,3 +36,4 @@ sudo cp ./man/apt-fast.8 /usr/share/man/man8
 sudo gzip -f9 /usr/share/man/man8/apt-fast.8
 sudo cp ./man/apt-fast.conf.5 /usr/share/man/man5
 sudo gzip -f9 /usr/share/man/man5/apt-fast.conf.5
+
