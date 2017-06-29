@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+# House Keeping
+_GIT_DIR="${HOME}/data/gits"
+if [ ! -d "${_GIT_DIR}" ]; then
+  mkdir -p "${_GIT_DIR}"
+fi
+cd "${_GIT_DIR}"
+
+# Initialization
+if [ ! -d "${_GIT_DIR}/cmusfm" ]; then
+  git clone --depth 1 https://github.com/Arkq/cmusfm
+  cd cmusfm
+else
+  cd cmusfm
+  git pull
+fi
+
+# Install Dependencies
+sudo apt install libcurl4-openssl-dev libnotify-dev
+
+# Installation
+autoreconf --install
+rm -rf build && mkdir build && cd build
+../configure --prefix=${HOME}/.local --enable-libnotify
+make && make install
+
+# Linking Binaries
+sudo ln -s ${HOME}/.local/bin/cmusfm /usr/bin/cmusfm
