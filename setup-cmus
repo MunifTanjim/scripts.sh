@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+# House Keeping
+_GIT_DIR="${HOME}/data/gits"
+if [ ! -d "${_GIT_DIR}" ]; then
+  mkdir -p "${_GIT_DIR}"
+fi
+cd "${_GIT_DIR}"
+
+# Initialization
+if [ ! -d "${_GIT_DIR}/cmus" ]; then
+  git clone --depth 1 https://github.com/cmus/cmus
+  cd cmus
+else
+  cd cmus
+  git pull
+fi
+
+# Install Dependencies
+sudo apt install libroar-dev libsamplerate0-dev libjack-dev libavformat-dev libavcodec-dev libsystemd-dev libopusfile-dev libasound2-dev
+
+# Installation
+./configure prefix=${HOME}/.local
+make
+make install
+
+# Linking Binaries
+sudo ln -s ${HOME}/.local/bin/cmus /usr/bin/cmus
+sudo ln -s ${HOME}/.local/bin/cmus-remote /usr/bin/cmus-remote
