@@ -26,4 +26,4 @@ rm -rf build && mkdir build && cd build
 make && make install
 
 # Linking Binaries
-sudo ln -s ${HOME}/.local/bin/cmusfm /usr/bin/cmusfm
+sudo ln -sf ${HOME}/.local/bin/cmusfm /usr/bin/cmusfm

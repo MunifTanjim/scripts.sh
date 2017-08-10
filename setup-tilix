@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+# House Keeping
+_GIT_DIR="${HOME}/data/gits"
+if [ ! -d "${_GIT_DIR}" ]; then
+  mkdir -p "${_GIT_DIR}"
+fi
+cd "${_GIT_DIR}"
+
+# Initialization
+if [ ! -d "${_GIT_DIR}/tilix" ]; then
+  git clone --depth 1 https://github.com/gnunn1/tilix
+  cd tilix
+else
+  cd tilix
+  git pull
+fi
+
+# Compile
+if ( ! type dub > /dev/null 2>&1 ); then
+  echo "Install DMD! [http://dlang.org/download.html#dmd]"
+  exit 1
+fi
+rm -f tilix
+dub build --build=release
+
+# Installation
+sudo ./install.sh /usr/local
