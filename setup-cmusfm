@@ -17,7 +17,7 @@ else
 fi
 
 # Install Dependencies
-sudo apt install libcurl4-openssl-dev libnotify-dev
+sudo apt install automake libcurl4-openssl-dev libnotify-dev
 
 # Installation
 autoreconf --install
