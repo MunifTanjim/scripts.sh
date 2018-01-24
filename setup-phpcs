@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+
+composer global require "squizlabs/php_codesniffer=*"
+
+composer global require "wimg/php-compatibility"
+composer global require "wp-coding-standards/wpcs"
+
+_WPCS="${COMPOSER_HOME}/vendor/wp-coding-standards/wpcs"
+_PHP_COMPAT="${COMPOSER_HOME}/vendor/wimg/php-compatibility"
+
+phpcs --config-set installed_paths "${_WPCS}","${_PHP_COMPAT}"
