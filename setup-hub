@@ -3,22 +3,12 @@
 # install/update hub
 # https://github.com/github/hub
 
-# House Keeping
-_GIT_DIR="${HOME}/data/gits"
-if [ ! -d "${_GIT_DIR}" ]; then
-  mkdir -p "${_GIT_DIR}"
-fi
-cd "${_GIT_DIR}"
+echo "Getting the source for hub..."
+go get -u github.com/github/hub
 
-# Initialization
-if [ ! -d "${_GIT_DIR}/hub" ]; then
-  git clone --depth 1 https://github.com/github/hub
-  cd hub
-else
-  cd hub
-  git pull
-fi
+cd "${GOPATH}/src/github.com/github/hub"
 
-# Installation
-make install prefix="$HOME/.local"
+echo "Building hub from the source..."
+make install prefix="${HOME}/.local"
 
+echo "Done!"
