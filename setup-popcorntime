@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+cd /tmp || exit
+
+_popcorntime_version=${1:-"0.3.10"}
+_popcorntime_platform=${2:-"Linux-64"}
+
+echo "Downloading PopcornTime Source Archive..."
+wget -q https://get.popcorntime.sh/build/Popcorn-Time-${_popcorntime_version}-${_popcorntime_platform}.tar.xz -O popcorntime.tar.xz
+rm -rf PopcornTime && mkdir -p PopcornTime
+tar -Jxf popcorntime.tar.xz -C ./PopcornTime
+rm popcorntime.tar.xz
+
+echo "Installing to /opt/PopcornTime Directory..."
+if [ -d "/opt/PopcornTime" ]; then
+  sudo rm -rf /opt/PopcornTime
+fi
+sudo mv PopcornTime /opt/PopcornTime
+
+echo "Creating Symbolic Link..."
+if [ -L "/usr/bin/popcorntime" ]; then
+  sudo rm -f /usr/bin/popcorntime
+fi
+sudo ln -s /opt/PopcornTime/Popcorn-Time /usr/bin/popcorntime
+
+echo "Adding Application Shortcut..."
+cat > ${HOME}/.local/share/applications/popcorntime.desktop <<EOL
+[Desktop Entry]
+Version=1.0
+Type=Application
+Terminal=false
+Name=PopCorn Time
+Exec=/opt/PopcornTime/Popcorn-Time
+Icon=/opt/PopcornTime/src/app/images/icon.png
+Categories=Application;
+EOL
+
+echo "Done!"
