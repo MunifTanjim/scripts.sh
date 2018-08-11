@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+cd /tmp || exit
+
+_neovim_version=${1:-"nightly"}
+
+echo "Downloading NeoVim AppImage..."
+wget -q https://github.com/neovim/neovim/releases/download/${_neovim_version}/nvim.appimage -O nvim.appimage
+chmod u+x nvim.appimage
+
+echo "Installing to /opt/neovim Directory..."
+sudo mkdir -p /opt/neovim
+sudo rm -rf /opt/neovim/nvim.appimage
+sudo mv nvim.appimage /opt/neovim/
+
+echo "Creating Symbolic Link..."
+if [ -L "/usr/bin/nvim" ]; then
+  sudo rm -f /usr/bin/nvim
+fi
+sudo ln -s /opt/neovim/nvim.appimage /usr/bin/nvim
+
+echo "Done!"
