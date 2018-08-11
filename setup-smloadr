@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+# House Keeping
+_deezer_dir="${HOME}/data/music/Downloads/Deezer"
+if [ ! -d "${_deezer_dir}" ]; then
+  mkdir -p ${_deezer_dir}
+fi
+cd ${_deezer_dir}
+
+# Initialization
+_smloadr_dir="${_deezer_dir}/smloadr"
+if [ ! -d "${_smloadr_dir}" ]; then
+  git clone --depth 1 https://git.fuwafuwa.moe/SMLoadrDev/SMLoadr.git ${_smloadr_dir}
+  cd ${_smloadr_dir}
+else
+  cd ${_smloadr_dir}
+  git pull
+fi
+
+# Install Dependencies
+npm install
+
+# Installation
+_smloadr_bin="${_deezer_dir}/smloadr.sh"
+rm ${_smloadr_bin}
+echo "#!/usr/bin/env sh" >> ${_smloadr_bin}
+echo "cd ${_deezer_dir}" >> ${_smloadr_bin}
+echo "node ${_smloadr_dir}/SMLoadr.js ${@}" >> ${_smloadr_bin}
+chmod u+x ${_smloadr_bin}
+
+# Linking Binaries
+ln -sf ${_smloadr_bin} ${HOME}/.local/bin/smloadr
