@@ -3,7 +3,7 @@
 cd /tmp || exit
 
 echo "Downloading Postman Source Archive..."
-wget -q https://dl.pstmn.io/download/latest/linux64 -O postman.tar.gz
+wget -q --show-progress https://dl.pstmn.io/download/latest/linux64 -O postman.tar.gz
 tar -xzf postman.tar.gz
 rm postman.tar.gz
 

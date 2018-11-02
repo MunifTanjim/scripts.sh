@@ -7,26 +7,30 @@ if [ ! -d "${_deezer_dir}" ]; then
 fi
 cd ${_deezer_dir}
 
-# Initialization
 _smloadr_dir="${_deezer_dir}/smloadr"
-if [ ! -d "${_smloadr_dir}" ]; then
-  git clone --depth 1 https://git.fuwafuwa.moe/SMLoadrDev/SMLoadr.git ${_smloadr_dir}
-  cd ${_smloadr_dir}
-else
+if [ -d "${_smloadr_dir}" ]; then
+  echo "SMLoadr is already installed!"
+  echo "Updating to the latest version..."
   cd ${_smloadr_dir}
   git pull
+else
+  echo "Installing SMLoadr..."
+  git clone --depth 1 https://git.fuwafuwa.moe/SMLoadrDev/SMLoadr.git ${_smloadr_dir}
+  cd ${_smloadr_dir}
 fi
 
-# Install Dependencies
+echo "Installing dependencies..."
 npm install
 
-# Installation
+echo "Setting up SMLoadr binary: smloadr"
 _smloadr_bin="${_deezer_dir}/smloadr.sh"
-rm ${_smloadr_bin}
-echo "#!/usr/bin/env sh" >> ${_smloadr_bin}
-echo "cd ${_deezer_dir}" >> ${_smloadr_bin}
-echo "node ${_smloadr_dir}/SMLoadr.js ${@}" >> ${_smloadr_bin}
-chmod u+x ${_smloadr_bin}
+tee ${_smloadr_bin} > /dev/null << EOL
+#!/usr/bin/env sh
 
-# Linking Binaries
+cd ${_deezer_dir}
+node ${_smloadr_dir}/SMLoadr.js \${@}
+EOL
+chmod u+x ${_smloadr_bin}
 ln -sf ${_smloadr_bin} ${HOME}/.local/bin/smloadr
+
+echo "Done!"

@@ -6,7 +6,7 @@ _popcorntime_version=${1:-"0.3.10"}
 _popcorntime_platform=${2:-"Linux-64"}
 
 echo "Downloading PopcornTime Source Archive..."
-wget -q https://get.popcorntime.sh/build/Popcorn-Time-${_popcorntime_version}-${_popcorntime_platform}.tar.xz -O popcorntime.tar.xz
+wget -q --show-progress https://get.popcorntime.sh/build/Popcorn-Time-${_popcorntime_version}-${_popcorntime_platform}.tar.xz -O popcorntime.tar.xz
 rm -rf PopcornTime && mkdir -p PopcornTime
 tar -Jxf popcorntime.tar.xz -C ./PopcornTime
 rm popcorntime.tar.xz
