@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+# install/update drivesync
+# https://github.com/MStadlmeier/drivesync
+
+_drivesync_dir="${HOME}/.drivesync"
+if [ -d "${_drivesync_dir}" ]; then
+  echo "DriveSync is already installed!"
+  echo "Updating to the latest version..."
+  cd ${_drivesync_dir} && git pull
+  echo "Running build..."
+  bundle install
+else
+  echo "Installing DriveSync..."
+  git clone https://github.com/MStadlmeier/drivesync ${_drivesync_dir}
+  echo "Running build..."
+  cd ${_drivesync_dir} && bundle install
+fi
+
+_drivesync_entrypoint="${_drivesync_dir}/drivesync.rb"
+
+echo "Setting up DriveSync binary: drivesync"
+_drivesync_bin="${HOME}/.local/bin/drivesync"
+tee ${_drivesync_bin} > /dev/null << EOL
+#!/usr/bin/env sh
+
+ruby ${_drivesync_entrypoint} \${@}
+EOL
+chmod u+x ${_drivesync_bin}
+
+echo "Setting up periodic synchronization: 20m"
+sudo tee /etc/cron.d/drivesync > /dev/null << EOL
+SHELL=${SHELL}
+
+*/20 * * * * munif . \${HOME}/.bashrc && drivesync > /tmp/drivesync.\$(date +\%Y\%m\%d\%H\%M\%S).log 2>&1
+EOL
+
+echo "Done!"
