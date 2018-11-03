@@ -3,23 +3,28 @@
 # install/update pyenv
 # https://github.com/yyuu/pyenv
 
-_PYENV_DIR="${HOME}/.pyenv"
-if [ -d "${_PYENV_DIR}" ]; then
-  cd "${_PYENV_DIR}"
+_pyenv_dir="${HOME}/.pyenv"
+if [[ -d "${_pyenv_dir}" ]]; then
+  echo "pyenv is already installed!"
+  echo "Updating pyenv..."
+  cd "${_pyenv_dir}"
   git pull
 else
-  git clone https://github.com/yyuu/pyenv "${_PYENV_DIR}"
+  echo "Installing pyenv..."
+  git clone https://github.com/yyuu/pyenv "${_pyenv_dir}"
 fi
 
-_PYENV_VIRTUALENV_DIR="${_PYENV_DIR}/plugins/pyenv-virtualenv"
-if [ -d "${_PYENV_VIRTUALENV_DIR}" ]; then
-  cd "${_PYENV_VIRTUALENV_DIR}"
+_pyenv_virtualenv_dir="${_pyenv_dir}/plugins/pyenv-virtualenv"
+if [[ -d "${_pyenv_virtualenv_dir}" ]]; then
+  echo "Updating pyenv-virtualenv..."
+  cd "${_pyenv_virtualenv_dir}"
   git pull
 else
-  git clone https://github.com/yyuu/pyenv-virtualenv "${_PYENV_VIRTUALENV_DIR}"
+  echo "Installing pyenv-virtualenv..."
+  git clone https://github.com/yyuu/pyenv-virtualenv "${_pyenv_virtualenv_dir}"
 fi
 
-if [ -n "$(which apt)" ]; then
-  sudo apt install -y make build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev xz-utils
-fi
+echo "Installing dependencies..."
+sudo apt install -y make build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev xz-utils
 
+echo "Done!"

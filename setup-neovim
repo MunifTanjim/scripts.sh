@@ -2,21 +2,31 @@
 
 cd /tmp || exit
 
+echo "Installing NeoVim..."
 _neovim_version=${1:-"nightly"}
+_neovim_url="https://github.com/neovim/neovim/releases/download/${_neovim_version}/nvim.appimage"
+_neovim_dir="/opt/neovim"
 
-echo "Downloading NeoVim AppImage..."
-wget -q https://github.com/neovim/neovim/releases/download/${_neovim_version}/nvim.appimage -O nvim.appimage
+echo "Downloading AppImage..."
+wget -qN --show-progress ${_neovim_url} -O nvim.appimage
 chmod u+x nvim.appimage
 
-echo "Installing to /opt/neovim Directory..."
-sudo mkdir -p /opt/neovim
-sudo rm -rf /opt/neovim/nvim.appimage
-sudo mv nvim.appimage /opt/neovim/
-
-echo "Creating Symbolic Link..."
-if [ -L "/usr/bin/nvim" ]; then
-  sudo rm -f /usr/bin/nvim
+echo "Installation Directory: ${_neovim_dir}"
+sudo mkdir -p ${_neovim_dir}
+if [[ -f "${_neovim_dir}/nvim.appimage" ]]; then
+  sudo mv ${_neovim_dir}/nvim.appimage ${_neovim_dir}/nvim.appimage.old
 fi
-sudo ln -s /opt/neovim/nvim.appimage /usr/bin/nvim
+sudo mv nvim.appimage ${_neovim_dir}/nvim.appimage
+
+echo "Setting up NeoVim binary: nvim / vim"
+sudo ln -nsf ${_neovim_dir}/nvim.appimage /usr/bin/nvim
+ln -nsf /usr/bin/nvim ${HOME}/.local/bin/vim
+
+echo "Installing Plugin Manager: vim-plug"
+_plug_url="https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim"
+_plug_path="${HOME}/.config/nvim/autoload/plug.vim"
+
+echo "Downloading Plug vimscript..."
+wget -qN --show-progress ${_plug_url} -O ${_plug_path}
 
 echo "Done!"

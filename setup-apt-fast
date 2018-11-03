@@ -2,38 +2,40 @@
 
 # House Keeping
 _GIT_DIR="${HOME}/data/gits"
-if [ ! -d "${_GIT_DIR}" ]; then
-  mkdir -p "${_GIT_DIR}"
-fi
+mkdir -p "${_GIT_DIR}"
 cd "${_GIT_DIR}"
 
 # Initialization
-if [ ! -d "${_GIT_DIR}/apt-fast" ]; then
-  git clone --depth 1 https://github.com/ilikenwf/apt-fast
-  cd apt-fast
-else
+if [[ -d "${_GIT_DIR}/apt-fast" ]]; then
+  echo "apt-fast is already installed!"
+  echo "Updating apt-fast..."
   cd apt-fast
   git pull
+else
+  echo "Installing apt-fast..."
+  git clone --depth 1 https://github.com/ilikenwf/apt-fast
+  cd apt-fast
 fi
 
-# Installation
+echo "Running build..."
 sudo cp apt-fast /usr/bin/
 sudo chmod +x /usr/bin/apt-fast
-if [ ! -f /etc/apt-fast.conf ]; then
+if [[ ! -f /etc/apt-fast.conf ]]; then
   sudo cp apt-fast.conf /etc
 fi
 
-# aria2 Plugin installation
+echo "Installing dependencies..."
 sudo apt install aria2
 
-# Bash completion
+echo "Setting up Bash completion..."
 sudo cp completions/bash/apt-fast /etc/bash_completion.d/
 sudo chown root:root /etc/bash_completion.d/apt-fast
 source /etc/bash_completion
 
-# Man page installation
+echo "Setting up man page..."
 sudo cp ./man/apt-fast.8 /usr/share/man/man8
 sudo gzip -f9 /usr/share/man/man8/apt-fast.8
 sudo cp ./man/apt-fast.conf.5 /usr/share/man/man5
 sudo gzip -f9 /usr/share/man/man5/apt-fast.conf.5
 
+echo "Done!"

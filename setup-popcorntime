@@ -2,26 +2,26 @@
 
 cd /tmp || exit
 
+echo "Installing PopcornTime..."
 _popcorntime_version=${1:-"0.3.10"}
 _popcorntime_platform=${2:-"Linux-64"}
+_popcorntime_url="https://get.popcorntime.sh/build/Popcorn-Time-${_popcorntime_version}-${_popcorntime_platform}.tar.xz"
+_popcorntime_dir="/opt/PopcornTime"
 
-echo "Downloading PopcornTime Source Archive..."
-wget -q --show-progress https://get.popcorntime.sh/build/Popcorn-Time-${_popcorntime_version}-${_popcorntime_platform}.tar.xz -O popcorntime.tar.xz
+echo "Downloading Source Archive..."
+wget -q --show-progress ${_popcorntime_url} -O popcorntime.tar.xz
 rm -rf PopcornTime && mkdir -p PopcornTime
 tar -Jxf popcorntime.tar.xz -C ./PopcornTime
 rm popcorntime.tar.xz
 
-echo "Installing to /opt/PopcornTime Directory..."
-if [ -d "/opt/PopcornTime" ]; then
-  sudo rm -rf /opt/PopcornTime
+echo "Installation Directory: ${_popcorntime_dir}"
+if [[ -d "${_popcorntime_dir}" ]]; then
+  sudo rm -rf ${_popcorntime_dir}
 fi
-sudo mv PopcornTime /opt/PopcornTime
+sudo mv PopcornTime ${_popcorntime_dir}
 
-echo "Creating Symbolic Link..."
-if [ -L "/usr/bin/popcorntime" ]; then
-  sudo rm -f /usr/bin/popcorntime
-fi
-sudo ln -s /opt/PopcornTime/Popcorn-Time /usr/bin/popcorntime
+echo "Setting up PopcornTime binary: popcorntime"
+sudo ln -nsf ${_popcorntime_dir}/Popcorn-Time /usr/bin/popcorntime
 
 echo "Adding Application Shortcut..."
 cat > ${HOME}/.local/share/applications/popcorntime.desktop <<EOL
@@ -30,8 +30,8 @@ Version=1.0
 Type=Application
 Terminal=false
 Name=PopCorn Time
-Exec=/opt/PopcornTime/Popcorn-Time
-Icon=/opt/PopcornTime/src/app/images/icon.png
+Exec=popcorntime
+Icon=${_popcorntime_dir}/src/app/images/icon.png
 Categories=Application;
 EOL
 

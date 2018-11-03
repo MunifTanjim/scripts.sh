@@ -2,13 +2,13 @@
 
 # House Keeping
 _deezer_dir="${HOME}/data/music/Downloads/Deezer"
-if [ ! -d "${_deezer_dir}" ]; then
+if [[ ! -d "${_deezer_dir}" ]]; then
   mkdir -p ${_deezer_dir}
 fi
 cd ${_deezer_dir}
 
 _smloadr_dir="${_deezer_dir}/smloadr"
-if [ -d "${_smloadr_dir}" ]; then
+if [[ -d "${_smloadr_dir}" ]]; then
   echo "SMLoadr is already installed!"
   echo "Updating to the latest version..."
   cd ${_smloadr_dir}

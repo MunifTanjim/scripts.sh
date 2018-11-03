@@ -2,28 +2,31 @@
 
 # House Keeping
 _GIT_DIR="${HOME}/data/gits"
-if [ ! -d "${_GIT_DIR}" ]; then
-  mkdir -p "${_GIT_DIR}"
-fi
+mkdir -p "${_GIT_DIR}"
 cd "${_GIT_DIR}"
 
 # Initialization
-if [ ! -d "${_GIT_DIR}/cmus" ]; then
-  git clone --depth 1 https://github.com/cmus/cmus
-  cd cmus
-else
+if [[ -d "${_GIT_DIR}/cmus" ]]; then
+  echo "cmus is already installed!"
+  echo "Updating cmus..."
   cd cmus
   git pull
+else
+  echo "Installing cmus..."
+  git clone --depth 1 https://github.com/cmus/cmus
+  cd cmus
 fi
 
-# Install Dependencies
-sudo apt install libroar-dev libsamplerate0-dev libjack-dev libavformat-dev libavcodec-dev libsystemd-dev libopusfile-dev libasound2-dev
+echo "Installing dependencies..."
+sudo apt install -y libroar-dev libsamplerate0-dev libjack-dev libavformat-dev libavcodec-dev libsystemd-dev libopusfile-dev libasound2-dev
 
-# Installation
+echo "Running build..."
 ./configure prefix=${HOME}/.local
 make
 make install
 
-# Linking Binaries
-sudo ln -sf ${HOME}/.local/bin/cmus /usr/bin/cmus
-sudo ln -sf ${HOME}/.local/bin/cmus-remote /usr/bin/cmus-remote
+echo "Setting up cmus binary: cmus, cmus-remote"
+sudo ln -nsf ${HOME}/.local/bin/cmus /usr/bin/cmus
+sudo ln -nsf ${HOME}/.local/bin/cmus-remote /usr/bin/cmus-remote
+
+echo "Done!"

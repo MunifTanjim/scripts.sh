@@ -2,28 +2,31 @@
 
 # House Keeping
 _GIT_DIR="${HOME}/data/gits"
-if [ ! -d "${_GIT_DIR}" ]; then
-  mkdir -p "${_GIT_DIR}"
-fi
+mkdir -p "${_GIT_DIR}"
 cd "${_GIT_DIR}"
 
 # Initialization
-if [ ! -d "${_GIT_DIR}/cmusfm" ]; then
-  git clone --depth 1 https://github.com/Arkq/cmusfm
-  cd cmusfm
-else
+if [[ -d "${_GIT_DIR}/cmusfm" ]]; then
+  echo "cmusfm is already installed!"
+  echo "Updating cmusfm..."
   cd cmusfm
   git pull
+else
+  echo "Installing cmusfm..."
+  git clone --depth 1 https://github.com/Arkq/cmusfm
+  cd cmusfm
 fi
 
-# Install Dependencies
-sudo apt install automake libcurl4-openssl-dev libnotify-dev
+echo "Installing dependencies..."
+sudo apt install -y automake libcurl4-openssl-dev libnotify-dev
 
-# Installation
+echo "Running build..."
 autoreconf --install
 rm -rf build && mkdir build && cd build
-../configure --prefix=${HOME}/.local --enable-libnotify
+../configure --prefix="${HOME}/.local" --enable-libnotify
 make && make install
 
-# Linking Binaries
-sudo ln -sf ${HOME}/.local/bin/cmusfm /usr/bin/cmusfm
+echo "Setting up cmusfm binary: cmusfm"
+sudo ln -nsf ${HOME}/.local/bin/cmusfm /usr/bin/cmusfm
+
+echo "Done!"

@@ -4,18 +4,19 @@
 # https://github.com/MStadlmeier/drivesync
 
 _drivesync_dir="${HOME}/.drivesync"
-if [ -d "${_drivesync_dir}" ]; then
+
+if [[ -d "${_drivesync_dir}" ]]; then
   echo "DriveSync is already installed!"
   echo "Updating to the latest version..."
   cd ${_drivesync_dir} && git pull
-  echo "Running build..."
-  bundle install
 else
   echo "Installing DriveSync..."
   git clone https://github.com/MStadlmeier/drivesync ${_drivesync_dir}
-  echo "Running build..."
-  cd ${_drivesync_dir} && bundle install
+  cd ${_drivesync_dir}
 fi
+
+echo "Running build..."
+bundle install
 
 _drivesync_entrypoint="${_drivesync_dir}/drivesync.rb"
 

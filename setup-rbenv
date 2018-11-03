@@ -3,14 +3,28 @@
 # install/update rbenv
 # https://github.com/rbenv/rbenv
 
-_RBENV_DIR="${HOME}/.rbenv"
-_RUBY_BUILD_DIR="${_RBENV_DIR}/plugins/ruby-build"
-if [ -d "${_RBENV_DIR}" ]; then
-  cd "${_RBENV_DIR}" && git pull
-  src/configure && make -C src
-  cd "${_RUBY_BUILD_DIR}" && git pull
+_rbenv_dir="${HOME}/.rbenv"
+if [[ -d "${_rbenv_dir}" ]]; then
+  echo "rbenv is already installed!"
+  echo "Updating rbenv..."
+  cd "${_rbenv_dir}" && git pull
 else
-  git clone https://github.com/rbenv/rbenv "${_RBENV_DIR}"
-  cd "${_RBENV_DIR}" && src/configure && make -C src
-  git clone https://github.com/rbenv/ruby-build "${_RUBY_BUILD_DIR}"
+  echo "Installing rbenv..."
+  git clone https://github.com/rbenv/rbenv "${_rbenv_dir}"
+  cd "${_rbenv_dir}"
 fi
+
+echo "Running build..."
+src/configure && make -C src
+
+_ruby_build_dir="${_rbenv_dir}/plugins/ruby-build"
+if [[ -d "${_ruby_build_dir}" ]]; then
+  echo "ruby-build is already installed!"
+  echo "Updating ruby-build..."
+  cd "${_ruby_build_dir}" && git pull
+else
+  echo "Installing ruby-build..."
+  git clone https://github.com/rbenv/ruby-build "${_ruby_build_dir}"
+fi
+
+echo "Done!"

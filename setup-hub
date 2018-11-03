@@ -3,12 +3,13 @@
 # install/update hub
 # https://github.com/github/hub
 
-echo "Getting the source for hub..."
+echo "Installing hub..."
+
+echo "Getting the source..."
 go get -u github.com/github/hub
 
+echo "Running build..."
 cd "${GOPATH}/src/github.com/github/hub"
-
-echo "Building hub from the source..."
 make install prefix="${HOME}/.local"
 
 echo "Done!"
