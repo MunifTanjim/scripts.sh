@@ -2,13 +2,11 @@
 
 # House Keeping
 _GIT_DIR="${HOME}/data/gits"
-if [ ! -d "${_GIT_DIR}" ]; then
-  mkdir -p "${_GIT_DIR}"
-fi
+mkdir -p "${_GIT_DIR}"
 cd "${_GIT_DIR}"
 
 # Initialization
-if [ ! -d "${_GIT_DIR}/tilix" ]; then
+if [[ ! -d "${_GIT_DIR}/tilix" ]]; then
   git clone --depth 1 https://github.com/gnunn1/tilix
   cd tilix
 else

@@ -4,7 +4,7 @@
 
 cd /tmp
 _TD_URL=""
-until [ -n "${_TD_URL}" ]; do
+until [[ -n "${_TD_URL}" ]]; do
   _TD_URL=$(curl -s https://api.github.com/repos/ginatrapani/todo.txt-cli/releases/latest | grep browser_download_url | head -n 1 | cut -d '"' -f 4)
 done
 wget -qO todo.txt_cli.tar.gz "${_TD_URL}"

@@ -5,13 +5,11 @@ sudo apt install ibus libibus-1.0-dev automake autoconf gjs ibus-1.0 gir1.2-ibus
 
 # House Keeping
 _GIT_DIR="${HOME}/data/gits"
-if [ ! -d "${_GIT_DIR}" ]; then
-  mkdir -p "${_GIT_DIR}"
-fi
+mkdir -p "${_GIT_DIR}"
 cd "${_GIT_DIR}"
 
 # Initialization
-if [ ! -d "${_GIT_DIR}/ibus-avro" ]; then
+if [[ ! -d "${_GIT_DIR}/ibus-avro" ]]; then
   git clone --depth 1 https://github.com/sarim/ibus-avro
   cd ibus-avro
 else
@@ -23,4 +21,3 @@ fi
 aclocal && autoconf && automake --add-missing
 ./configure --prefix=/usr
 sudo make install
-
