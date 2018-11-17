@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+
+set -e
+
+function inArray {
+  local elem
+  for elem in "${@:2}"; do
+    [[ "${elem}" == "${1}" ]] && return 0
+  done
+  return 1
+}
+
+function prepare_root_dir {
+  sudo mkdir -p ${_root_dir}
+  sudo chown ${USER}:${USER} ${_root_dir}
+}
+
+function select_tool {
+  local tools=($(curl -LsSf ${_releases_url} | grep -o "\=\"/.\+>.\+<" | sed "s/=.\+\">//;s/<//" | xargs))
+
+  if inArray ${1} ${tools[@]}; then
+    _tool=${1}
+  else
+    echo "Select a tool:"
+    PS3="-> "
+    select tool in "${tools[@]}"; do
+      _tool=${tool}
+      break
+    done
+    echo ""
+  fi
+}
+
+function select_version {
+  local url="${_releases_url}/${_tool}"
+  local versions=($(curl -LsSf ${url} | grep -o ">${_tool}_.*<" | sed "s/>${_tool}_//;s/<//" | xargs))
+
+  if inArray ${1} ${versions[@]}; then
+    _version=${1}
+  else
+    echo "Select ${_tool} version:"
+    PS3="-> "
+    select version in ${versions[@]}; do
+      _version=${version}
+      break
+    done
+    echo ""
+  fi
+}
+
+function select_platform {
+  local url="${_releases_url}/${_tool}/${_version}"
+  local platforms=($(curl -LsSf ${url} | grep -o ">${_tool}_${_version}_.*\.zip<" | sed "s/>${_tool}_${_version}_//;s/\.zip<//" | xargs))
+
+  if inArray ${1} ${platforms[@]}; then
+    _platform=${1}
+  else
+    echo "Select platform:"
+    PS3="-> "
+    select platform in ${platforms[@]}; do
+      _platform=${platform}
+      break
+    done
+    echo ""
+  fi
+}
+
+function prepare_installation_dir {
+  echo "Installation directory: ${_dir}/${_version}"
+  mkdir -p ${_dir}/${_version}
+  echo ""
+}
+
+function download_archive {
+  local url="${_releases_url}/${_tool}/${_version}/${_filename}"
+
+  echo "Downloading source archive..."
+  curl -#Lf -o ${_filename} ${url}
+  echo ""
+}
+
+function verify_checksum {
+  local url="${_releases_url}/${_tool}/${_version}/${_tool}_${_version}_SHA256SUMS"
+
+  echo "Verifying checksum..."
+  curl -LsSf ${url} | grep ${_filename} | sha256sum -c -
+  echo ""
+}
+
+function extract_archive {
+  echo "Extracting source archive..."
+  unzip -u ${_filename} -d ${_version}
+  echo ""
+}
+
+function setup_binary {
+  echo "Setting up binary: ${_tool}"
+  case ${_tool} in
+    "vault")
+      sudo setcap cap_ipc_lock=+ep ${_dir}/${_version}/${_tool}
+      ;;
+    *)
+      ;;
+  esac
+  ln -nsf ${_dir}/${_version}/${_tool} ${_dir}/_${_tool}
+  sudo ln -nsf ${_dir}/_${_tool} /usr/local/bin/${_tool}
+  echo ""
+}
+
+function cleanup {
+  echo "Cleaning up..."
+  rm ${_filename}
+  echo ""
+}
+
+echo "========================="
+echo "Hashicorp Tools Installer"
+echo "========================="
+echo ""
+
+if [[ "${@}" == **--help** ]]; then
+  echo "Usage   : setup-hashicorp-tools [tool] [version] [platform]"
+  echo "Example : setup-hashicorp-tools vault  0.11.5    linux_amd64"
+  echo ""
+else
+  _releases_url="https://releases.hashicorp.com"
+
+  select_tool ${1}
+  select_version ${2}
+  select_platform ${3}
+
+  echo "Installing ${_tool} (v${_version}) [${_platform}]..."
+  echo ""
+
+  _root_dir="/opt/HashiCorp"
+  _dir="${_root_dir}/${_tool}"
+  _filename="${_tool}_${_version}_${_platform}.zip"
+
+  prepare_root_dir
+  prepare_installation_dir
+  cd ${_dir}
+
+  download_archive
+  verify_checksum
+  extract_archive
+  setup_binary
+  cleanup
+
+  echo "Done!"
+fi
