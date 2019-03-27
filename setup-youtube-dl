@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+__binary_path="${HOME}/.local/bin/youtube-dl"
+
+echo "Downloading youtube-dl binary: youtube-dl"
+wget -q --show-progress https://yt-dl.org/downloads/latest/youtube-dl -O ${__binary_path}
+chmod u+x ${__binary_path}
+
+echo "Done!"
