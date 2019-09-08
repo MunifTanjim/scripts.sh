@@ -18,7 +18,7 @@ else
 fi
 
 echo "Installing dependencies..."
-sudo apt install -y libroar-dev libsamplerate0-dev libjack-dev libavformat-dev libavcodec-dev libsystemd-dev libopusfile-dev libasound2-dev
+sudo apt install -y libroar-dev libsamplerate0-dev libjack-dev libavformat-dev libavcodec-dev libsystemd-dev libopusfile-dev libasound2-dev libncurses5-dev libncursesw5-dev
 
 echo "Running build..."
 ./configure prefix=${HOME}/.local
