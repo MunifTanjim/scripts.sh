@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+cd /tmp || exit
+
+echo "Installing Robo 3T..."
+_robo3t_url=`curl -s https://api.github.com/repos/Studio3T/robomongo/releases/latest | grep -o "http.*tar.gz"`
+_robo3t_dir="/opt/Robo3T"
+
+_robo3t_icon_url="https://github.com/Studio3T/robomongo/raw/master/src/robomongo/gui/resources/icons/logo-256x256.png"
+
+_robo3t_archive_filename=`basename ${_robo3t_url}`
+_robo3t_archive_directory=${_robo3t_archive_filename%.tar.gz}
+
+echo "Downloading Source Archive..."
+wget -q --show-progress ${_robo3t_url} -O robo3t.tar.gz
+echo "Unpacking Source Archive..."
+tar -xzf robo3t.tar.gz
+echo "Removing Source Archive..."
+rm robo3t.tar.gz
+
+echo "Installation Directory: ${_robo3t_dir}"
+if [[ -d "${_robo3t_dir}" ]]; then
+  sudo rm -rf ${_robo3t_dir}
+fi
+sudo mv ${_robo3t_archive_directory} ${_robo3t_dir}
+
+echo "Setting up Robo 3T binary: robo3t"
+sudo ln -nsf ${_robo3t_dir}/bin/robo3t /usr/bin/robo3t
+
+echo "Getting Robo3T Icon..."
+wget -q --show-progress ${_robo3t_icon_url} -O ${_robo3t_dir}/bin/logo.png
+
+echo "Adding Application Shortcut..."
+cat > ${HOME}/.local/share/applications/robo3t.desktop <<EOL
+[Desktop Entry]
+Encoding=UTF-8
+Name=Robo 3T
+Exec=robo3t
+Icon=${_robo3t_dir}/bin/logo.png
+Terminal=false
+Type=Application
+Categories=Development;
+EOL
+
+echo "Done!"
