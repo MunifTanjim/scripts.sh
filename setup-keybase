@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+# House Keeping
+cd /tmp || exit
+rm -f keybase_amd64.deb
+
+# Installation
+echo "Downloading Keybase package: keybase_amd64.deb"
+curl --progress-bar -O https://prerelease.keybase.io/keybase_amd64.deb
+# if you see an error about missing `libappindicator1`
+# from the next command, you can ignore it, as the
+# subsequent command corrects it
+echo "Installing Keybase package..."
+sudo dpkg -i keybase_amd64.deb
+echo "Resolving dependencies..."
+sudo apt-get install -f
+echo "Done! Running Keybase..."
+run_keybase
