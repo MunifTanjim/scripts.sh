@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+# install/update tmux plugin manager
+# https://github.com/tmux-plugins/tpm
+
+
+_tpm_dir="${HOME}/.tmux/plugins/tpm"
+if [[ -d "${_tpm_dir}" ]]; then
+  (
+    echo "tpm is already installed!"
+    echo "Updating tpm..."
+    cd "${_tpm_dir}"
+    git fetch origin
+    git checkout $(git describe --abbrev=0 --tags --match "v[0-9]*" origin)
+  )
+else
+  (
+    echo "Installing tpm..."
+    git clone https://github.com/tmux-plugins/tpm "${_tpm_dir}"
+    cd "${_tpm_dir}"
+    git checkout $(git describe --abbrev=0 --tags --match "v[0-9]*" origin)
+  )
+fi
