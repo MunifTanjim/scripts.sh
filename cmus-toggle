@@ -3,7 +3,7 @@
 _terminal_emulator=$(readlink -f `which x-terminal-emulator`)
 _terminal_name=$(basename ${_terminal_emulator})
 
-_terminal_command
+_terminal_command=""
 
 case ${terminal_name} in
   alacritty)

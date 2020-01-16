@@ -29,4 +29,7 @@ echo "Setting up cmus binary: cmus, cmus-remote"
 sudo ln -nsf ${HOME}/.local/bin/cmus /usr/bin/cmus
 sudo ln -nsf ${HOME}/.local/bin/cmus-remote /usr/bin/cmus-remote
 
+echo "Setting up helper scripts..."
+sudo ln -nsf `which cmus-toggle` /usr/bin/cmus-toggle
+
 echo "Done!"
