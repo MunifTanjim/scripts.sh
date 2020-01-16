@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+_terminal_emulator=$(readlink -f `which x-terminal-emulator`)
+_terminal_name=$(basename ${_terminal_emulator})
+
+_terminal_command
+
+case ${terminal_name} in
+  alacritty)
+    _terminal_command="${_terminal_emulator} x";;
+  tilix)
+    _terminal_command="${_terminal_emulator} --window-style=disable-csd";;
+  mate-terminal)
+    _terminal_command="${_terminal_emulator} --hide-menubar";;
+  *)
+    _terminal_command="${_terminal_emulator}";;
+esac
+
+if (pgrep cmus$ &>/dev/null) ; then
+  cmus-remote -u
+else
+  notify-send cmus "Loading C* Music Player..."
+  ${_terminal_command} --command=cmus
+fi
