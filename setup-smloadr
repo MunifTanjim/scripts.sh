@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # House Keeping
-_deezer_dir="${HOME}/data/music/Downloads/Deezer"
+_deezer_dir="${HOME}/Music/Downloads/Deezer"
 if [[ ! -d "${_deezer_dir}" ]]; then
   mkdir -p ${_deezer_dir}
 fi
