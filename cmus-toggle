@@ -5,9 +5,9 @@ _terminal_name=$(basename ${_terminal_emulator})
 
 _terminal_command=""
 
-case ${terminal_name} in
+case ${_terminal_name} in
   alacritty)
-    _terminal_command="${_terminal_emulator} x";;
+    _terminal_command="${_terminal_emulator}";;
   tilix)
     _terminal_command="${_terminal_emulator} --window-style=disable-csd";;
   mate-terminal)
