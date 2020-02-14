@@ -1,8 +1,22 @@
 #!/usr/bin/env bash
 
+_xdg_bin_dir="${HOME}/.local/bin"
+_xdg_data_dir="${HOME}/.local/share"
+
 if type chezmoi >/dev/null 2>&1; then
+  echo "Upgrading chezmoi..."
   chezmoi upgrade
 else
-  curl -sfL https://git.io/chezmoi | sh -s -- -b ${HOME}/.local/bin
+  echo "Installing chezmoi..."
+  curl -sfL https://git.io/chezmoi | sh -s -- -b ${_xdg_bin_dir}
 fi
-sudo ln -nsf ${HOME}/.local/bin/chezmoi /usr/local/bin/chezmoi
+
+echo "Setting up binary: chezmoi"
+if test "$(readlink --canonicalize-existing --no-newline /usr/local/bin/chezmoi)" != "${_xdg_bin_dir}/chezmoi"; then
+  sudo ln -nsf ${_xdg_bin_dir}/chezmoi /usr/local/bin/chezmoi
+fi
+
+
+echo "Setting up bash completion..."
+mkdir -p ${_xdg_data_dir}/bash-completion/completions
+chezmoi completion bash > ${_xdg_data_dir}/bash-completion/completions/chezmoi
