@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+
+set -e
+
+function get_latest_reposiotry() {
+  local repo_uri="${1}"
+  local repo_dir="${2}"
+
+  echo "Repository URI: ${repo_uri}"
+  if [[ ! -d "${repo_dir}" ]]; then
+    echo "Cloning repository..."
+    mkdir -p `dirname ${repo_dir}`
+    git clone --quiet --depth 10 "${repo_uri}" "${repo_dir}"
+    pushd "${repo_dir}" >/dev/null
+  else
+    echo "Pulling latest commits..."
+    pushd "${repo_dir}" >/dev/null
+    git pull
+  fi
+
+  popd >/dev/null
+}
+
+function link_binary() {
+  local binary_name="${1}"
+  echo "Setting up binary: ${binary_name}"
+  sudo ln -nsf "${HOME}/.local/bin/${binary_name}" "/usr/local/bin/${binary_name}"
+}
+
+function setup_python_package() {
+  local package_name="${1}"
+
+  if test "$(pyenv version-name | cut -d'.' -f1)" != "3"; then
+    echo "Python 3 is required!"
+    exit 1
+  fi
+
+  echo "Installing Python package: ${package_name}"
+  pip install --quiet ${package_name}
+}
+
+function setup_mpd() {
+  echo
+  echo "================="
+  echo "=     MPD       ="
+  echo "================="
+  echo
+
+  get_latest_reposiotry "https://github.com/MusicPlayerDaemon/MPD" "${HOME}/Dev/github/MusicPlayerDaemon/MPD"
+  pushd "${HOME}/Dev/github/MusicPlayerDaemon/MPD" >/dev/null
+
+  echo "Installing dependencies..."
+  setup_python_package meson
+  sudo apt install --quiet --yes build-essential libadplug-dev libao-dev libaudiofile-dev libavahi-client-dev libavcodec-dev libavfilter-dev libavformat-dev libavutil-dev libboost-dev libbz2-dev libcdio-paranoia-dev libchromaprint-dev libfaad-dev libflac-dev libfluidsynth-dev libgme-dev libid3tag0-dev libiso9660-dev libjack-dev libmad0-dev libmikmod-dev libmms-dev libmodplug-dev libmp3lame-dev libmpcdec-dev libmpdclient-dev libmpg123-dev libnfs-dev libogg-dev libopenal-dev libopus-dev libpulse-dev libsamplerate0-dev libshine-dev libshout3-dev libsidplayfp-dev libsmbclient-dev libsndfile1-dev libsndio-dev libsoxr-dev libsqlite3-dev libtwolame-dev libupnp-dev libvorbis-dev libwavpack-dev libwildmidi-dev libyajl-dev libzzip-dev ninja-build pkg-config
+
+  echo "Running build..."
+  meson ./ ./output --buildtype=release
+  meson configure --prefix="${HOME}/.local" ./output
+  ninja -C ./output
+
+  echo "Installing..."
+  ninja -C ./output install
+
+  link_binary "mpd"
+}
+
+function setup_mpc() {
+  echo
+  echo "================="
+  echo "=     MPC       ="
+  echo "================="
+  echo
+
+  get_latest_reposiotry "https://github.com/MusicPlayerDaemon/mpc" "${HOME}/Dev/github/MusicPlayerDaemon/mpc"
+  pushd "${HOME}/Dev/github/MusicPlayerDaemon/mpc" >/dev/null
+
+  echo "Installing dependencies..."
+  setup_python_package meson
+  setup_python_package sphinx
+  sudo apt install --quiet --yes build-essential
+
+  echo "Running build..."
+  meson ./ ./output --buildtype=release
+  meson configure --prefix="${HOME}/.local" ./output
+  ninja -C ./output
+
+  echo "Installing..."
+  ninja -C ./output install
+
+  link_binary "mpc"
+}
+
+function setup_mpdscribble() {
+  echo
+  echo "================="
+  echo "=  MPDScribble  ="
+  echo "================="
+  echo
+
+  get_latest_reposiotry "https://github.com/MusicPlayerDaemon/mpdscribble" "${HOME}/Dev/github/MusicPlayerDaemon/mpdscribble"
+  pushd "${HOME}/Dev/github/MusicPlayerDaemon/mpdscribble" >/dev/null
+
+  echo "Installing dependencies..."
+  setup_python_package meson
+  sudo apt install --quiet --yes build-essential libgcrypt20-dev libmpdclient-dev pkg-config
+
+  echo "Running build..."
+  meson ./ ./output --buildtype=release
+  meson configure --prefix="${HOME}/.local" ./output
+  ninja -C ./output
+
+  echo "Installing..."
+  ninja -C ./output install
+
+  link_binary "mpdscribble"
+}
+
+function setup_ncmpcpp() {
+  echo
+  echo "================="
+  echo "=    NCMPCPP    ="
+  echo "================="
+  echo
+
+  echo "Installing system package..."
+  sudo apt install --quiet --yes ncmpcpp
+}
+
+function setup_music_binary() {
+  echo
+  echo "================="
+  echo "=     music     ="
+  echo "================="
+  echo
+
+  local music_binary_path="${HOME}/.local/bin/music"
+
+  cat > ${music_binary_path} <<EOL
+#!/usr/bin/env sh
+
+if ! (pgrep mpd$ >/dev/null 2>&1); then
+  mpd >/dev/null 2>&1
+  killall mpdscribble --quiet
+fi
+
+if ! (pgrep mpdscribble$ >/dev/null 2>&1); then
+  mpdscribble --conf "\${HOME}/.config/mpdscribble/mpdscribble.conf"
+fi
+
+_terminal_emulator=\$(readlink -f `which x-terminal-emulator`)
+_terminal_name=\$(basename \${_terminal_emulator})
+
+_terminal_command=""
+
+case \${_terminal_name} in
+  alacritty)
+    _terminal_command="\${_terminal_emulator}";;
+  tilix)
+    _terminal_command="\${_terminal_emulator} --window-style=disable-csd";;
+  mate-terminal)
+    _terminal_command="\${_terminal_emulator} --hide-menubar";;
+  *)
+    _terminal_command="\${_terminal_emulator}";;
+esac
+
+if (pgrep ncmpcpp$ >/dev/null 2>&1); then
+  mpc toggle
+else
+  notify-send "Music Player" "Loading Music Player..."
+  \${_terminal_command} --command ncmpcpp \${@}
+fi
+EOL
+
+  chmod u+x ${music_binary_path}
+
+  link_binary "music"
+}
+
+setup_mpd
+setup_mpc
+setup_mpdscribble
+setup_ncmpcpp
+setup_music_binary
