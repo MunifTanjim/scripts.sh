@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+if type chezmoi >/dev/null 2>&1; then
+  chezmoi upgrade
+else
+  curl -sfL https://git.io/chezmoi | sh -s -- -b ${HOME}/.local/bin
+fi
+sudo ln -nsf ${HOME}/.local/bin/chezmoi /usr/local/bin/chezmoi
