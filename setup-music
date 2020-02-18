@@ -166,7 +166,7 @@ esac
 if (pgrep ncmpcpp$ >/dev/null 2>&1); then
   mpc toggle
 else
-  notify-send "Music Player" "Loading Music Player..."
+  notify-send --hint=int:transient:1 "Music Player" "Loading..."
   \${_terminal_command} --command ncmpcpp \${@}
 fi
 EOL
