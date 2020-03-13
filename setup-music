@@ -138,6 +138,8 @@ function setup_music_binary() {
   cat > ${music_binary_path} <<EOL
 #!/usr/bin/env sh
 
+set -e
+
 if ! (pgrep mpd$ >/dev/null 2>&1); then
   mpd >/dev/null 2>&1
   killall mpdscribble --quiet
