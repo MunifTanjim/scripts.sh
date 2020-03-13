@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 
 _count=$1
+shift 1
+_separator_command="${@:-""}"
 
 ( expr "$_count" : '^[0-9]\{1,2\}$' >/dev/null ) || _count=1
 
 while [ $_count -ne 0 ]; do
   _count=$(($_count-1))
+
 	wget http://www.randominsults.net -O - 2>/dev/null | \
 	  grep '<strong>' | \
 	  sed "s:^.*<i>\(.*\)</i>.*$:\1:"
+
+	if [ $_count -ne 0 ]; then
+		eval "${_separator_command}"
+	fi
 done
