@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+set -e
+
+function get_latest_reposiotry() {
+  local repo_uri="${1}"
+  local repo_dir="${2}"
+
+  echo "Repository URI: ${repo_uri}"
+  if [[ ! -d "${repo_dir}" ]]; then
+    echo "Cloning repository..."
+    mkdir -p "$(dirname "${repo_dir}")"
+    git clone --quiet --recursive --depth 10 "${repo_uri}" "${repo_dir}"
+    pushd "${repo_dir}" >/dev/null
+  else
+    echo "Pulling latest commits..."
+    pushd "${repo_dir}" >/dev/null
+    git pull
+    git submodule update --init
+  fi
+
+  popd >/dev/null
+}
+
+function setup_python_package() {
+  local package_name="${1}"
+
+  if test "$(pyenv version-name | cut -d'.' -f1)" != "3"; then
+    echo "Python 3 is required!"
+    exit 1
+  fi
+
+  echo "Installing Python package: ${package_name}"
+  pip install --quiet "${package_name}"
+}
+
+function setup_apt_packages() {
+  echo "Installing packages: $*"
+  sudo apt-get install -qq --yes "$@"
+}
+
+function link_binary() {
+  local binary_name="${1}"
+  echo "Setting up binary: ${binary_name}"
+  sudo ln -nsf "${HOME}/.local/bin/${binary_name}" "/usr/local/bin/${binary_name}"
+}
+
+function setup_rofi() {
+  get_latest_reposiotry "https://github.com/davatorium/rofi" "${HOME}/Dev/github/davatorium/rofi"
+  pushd "${HOME}/Dev/github/davatorium/rofi" >/dev/null
+
+  echo "Installing dependencies..."
+  setup_python_package meson
+  setup_apt_packages build-essential check flex libjpeg-dev librsvg2-dev libstartup-notification0-dev libxcb-ewmh-dev libxcb-icccm4-dev libxcb-randr0-dev libxcb-util-dev libxcb-xinerama0-dev libxcb-xkb-dev libxcb-xrm-dev libxcb1-dev libxkbcommon-x11-dev ninja-build pkg-config
+
+  echo "Running build..."
+  meson ./ ./build
+  meson configure --prefix="${HOME}/.local" ./build
+  ninja -C ./build
+
+  echo "Installing..."
+  ninja -C ./build install
+
+  link_binary "rofi"
+}
+
+setup_rofi
