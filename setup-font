@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -eo pipefail
+
 _fonts_dir="${HOME}/.fonts"
 
 _available_fonts=(
@@ -57,6 +59,7 @@ function update_font_cache() {
   sudo fc-cache -f
 }
 
+mkdir -p ${_fonts_dir}
 cd ${_fonts_dir}
 
 select_font
