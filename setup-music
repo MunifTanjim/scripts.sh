@@ -22,9 +22,16 @@ function get_latest_reposiotry() {
 }
 
 function link_binary() {
-  local binary_name="${1}"
-  echo "Setting up binary: ${binary_name}"
-  sudo ln -nsf "${HOME}/.local/bin/${binary_name}" "/usr/local/bin/${binary_name}"
+  local -r name="${1}"
+  echo "Setting up binary: ${name}"
+  sudo ln -nsf "${HOME}/.local/bin/${name}" "/usr/local/bin/${name}"
+}
+
+function prepare_directories() {
+  local -r name="${1}"
+  local -r data_dir="${HOME}/.local/share/${name}"
+  echo "Preparing directories..."
+  mkdir -p "${data_dir}"
 }
 
 function setup_python_package() {
@@ -51,7 +58,7 @@ function setup_mpd() {
 
   echo "Installing dependencies..."
   setup_python_package meson
-  sudo apt install --quiet --yes build-essential libadplug-dev libao-dev libaudiofile-dev libavahi-client-dev libavcodec-dev libavfilter-dev libavformat-dev libavutil-dev libboost-dev libbz2-dev libcdio-paranoia-dev libchromaprint-dev libfaad-dev libflac-dev libfluidsynth-dev libgme-dev libid3tag0-dev libiso9660-dev libjack-dev libmad0-dev libmikmod-dev libmms-dev libmodplug-dev libmp3lame-dev libmpcdec-dev libmpdclient-dev libmpg123-dev libnfs-dev libogg-dev libopenal-dev libopus-dev libpulse-dev libsamplerate0-dev libshine-dev libshout3-dev libsidplayfp-dev libsmbclient-dev libsndfile1-dev libsndio-dev libsoxr-dev libsqlite3-dev libtwolame-dev libupnp-dev libvorbis-dev libwavpack-dev libwildmidi-dev libyajl-dev libzzip-dev ninja-build pkg-config
+  sudo apt install --quiet --yes build-essential cmake libadplug-dev libao-dev libaudiofile-dev libavahi-client-dev libavcodec-dev libavfilter-dev libavformat-dev libavutil-dev libboost-dev libbz2-dev libcdio-paranoia-dev libchromaprint-dev libcurl4-gnutls-dev libexpat1-dev libfaad-dev libflac-dev libfluidsynth-dev libgme-dev libicu-dev libid3tag0-dev libiso9660-dev libjack-dev libmad0-dev libmikmod-dev libmms-dev libmodplug-dev libmp3lame-dev libmpcdec-dev libmpdclient-dev libmpg123-dev libnfs-dev libogg-dev libopenal-dev libopus-dev libpulse-dev libsamplerate0-dev libshine-dev libshout3-dev libsidplayfp-dev libsmbclient-dev libsndfile1-dev libsndio-dev libsoxr-dev libsqlite3-dev libtwolame-dev libupnp-dev libvorbis-dev libwavpack-dev libwildmidi-dev libyajl-dev libzzip-dev ninja-build pkg-config
 
   echo "Running build..."
   meson ./ ./output --buildtype=release
@@ -61,6 +68,7 @@ function setup_mpd() {
   echo "Installing..."
   ninja -C ./output install
 
+  prepare_directories "mpd"
   link_binary "mpd"
 }
 
@@ -112,6 +120,7 @@ function setup_mpdscribble() {
   echo "Installing..."
   ninja -C ./output install
 
+  prepare_directories "mpdscribble"
   link_binary "mpdscribble"
 }
 
@@ -124,6 +133,8 @@ function setup_ncmpcpp() {
 
   echo "Installing system package..."
   sudo apt install --quiet --yes ncmpcpp
+
+  prepare_directories "ncmpcpp"
 }
 
 function setup_music_binary() {
@@ -142,7 +153,7 @@ set -e
 
 if ! (pgrep mpd$ >/dev/null 2>&1); then
   mpd >/dev/null 2>&1
-  killall mpdscribble --quiet
+  killall mpdscribble --quiet || true
 fi
 
 if ! (pgrep mpdscribble$ >/dev/null 2>&1); then
