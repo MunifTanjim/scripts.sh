@@ -51,7 +51,7 @@ function setup_rofi() {
 
   echo "Installing dependencies..."
   setup_python_package meson
-  setup_apt_packages build-essential cppcheck flex libjpeg-dev libpango1.0-dev librsvg2-dev libstartup-notification0-dev libxcb-ewmh-dev libxcb-icccm4-dev libxcb-randr0-dev libxcb-util-dev libxcb-xinerama0-dev libxcb-xkb-dev libxcb-xrm-dev libxcb1-dev libxkbcommon-x11-dev ninja-build ohcount pkg-config ronn uncrustify
+  setup_apt_packages build-essential cppcheck flex libbison-dev libjpeg-dev libpango1.0-dev librsvg2-dev libstartup-notification0-dev libxcb-ewmh-dev libxcb-icccm4-dev libxcb-randr0-dev libxcb-util-dev libxcb-xinerama0-dev libxcb-xkb-dev libxcb-xrm-dev libxcb1-dev libxkbcommon-x11-dev ninja-build ohcount pkg-config ronn uncrustify
 
   echo "Running build..."
   meson ./ ./build
