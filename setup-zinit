@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+
+export ZDOTDIR="${ZDOTDIR:-${HOME}/.config/zsh}"
+export ZINIT_HOME="${ZINIT_HOME:-"${HOME}/.local/share/zinit"}"
+
+curl -fsSL https://raw.githubusercontent.com/zdharma/zinit/master/doc/install.sh | sh
