@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cache_dir="${HOME}/.cache/scripts"
+cache_dir_downloads="${cache_dir}/downloads"
+android_studio_download_dir="${cache_dir_downloads}/android-studio"
+
+android_sdk_dir="${HOME}/.local/share/android/sdk"
+android_studio_ide_dir="${HOME}/.local/share/android/ide"
+
+applications_shortcut_dir="${HOME}/.local/share/applications"
+
+function remove_file_with_prompt() {
+  local -r filepath="${1}"
+  local -r removal_prompt="${2}"
+
+  if [[ -e ${filepath} ]]; then
+    if [[ -n ${removal_prompt} ]]; then
+      echo "${removal_prompt}"
+      read -rp "Remove file? ($(basename "${filepath}")) [yN]: " should_remove_file
+      should_remove_file="${should_remove_file:-"n"}"
+      if [[ "${should_remove_file}" = "y" ]]; then
+        rm "${filepath}"
+      fi
+    else
+      rm -f "${filepath}"
+    fi
+  fi
+}
+
+function download_file() {
+  local -r fileurl="${1}"
+  local -r filepath="${2}"
+
+  echo "Downloading: ${fileurl}"
+  wget --continue --quiet --show-progress --timestamping "${fileurl}" -O "${filepath}"
+}
+
+function validate_url() {
+  local -r url="${1}"
+  local -r url_pattern="${2}"
+
+  echo "Validating url: ${url}"
+  if [[ ! ${url} =~ ${url_pattern} ]]; then
+    echo "Invalid IDE Archive url!"
+    exit 1
+  fi
+}
+
+function prepare_dirs() {
+  mkdir -p "${android_studio_download_dir}" \
+    "${android_sdk_dir}" \
+    "${android_studio_ide_dir}"
+}
+
+function get_latest_ide_archive_url() {
+  local -r source_url="https://developer.android.com/studio/index.html"
+  local -r archive_url="$(curl -s "${source_url}" | grep 'a href=".*android-studio-ide-.*-linux.tar.gz"' | cut -d'"' -f 2)"
+  echo "${archive_url}"
+}
+
+latest_ide_archive_url="$(get_latest_ide_archive_url)"
+validate_url "${latest_ide_archive_url}" ^https?://.+/android-studio-ide-.+-linux.tar.gz$
+
+latest_ide_archive_filename="$(basename "${latest_ide_archive_url}")"
+latest_ide_archive_filepath="${android_studio_download_dir}/${latest_ide_archive_filename}"
+
+function remove_old_ide_archives() {
+  for ide_archive_filepath in "${android_studio_download_dir}"/android-studio-ide-*; do
+    if [[ ! -e "${ide_archive_filepath}" ]]; then
+      continue
+    fi
+
+    if [[ "${ide_archive_filepath}" != "${latest_ide_archive_filepath}" ]]; then
+      remove_file_with_prompt "${ide_archive_filepath}" "Old IDE Archive exists!"
+    fi
+  done
+}
+
+function extract_ide_archive() {
+  local -r ide_archive_filepath="${1}"
+
+  echo "Extracting Android Studio IDE Archive..."
+  tar --extract --gzip --transform 's|android-studio/|./|' --directory "${android_studio_ide_dir}"  --file "${ide_archive_filepath}"
+}
+
+function install_necessary_packages() {
+  echo "Installing required libraries for 64-bit ubuntu..."
+  sudo apt-get install libc6:i386 libncurses5:i386 libstdc++6:i386 lib32z1 libbz2-1.0:i386
+
+  echo "Installing packages to enable hardware acceleration for the Android Emulator..."
+  sudo apt-get install bridge-utils libvirt-clients libvirt-daemon-system qemu-kvm
+}
+
+function add_application_shortcut() {
+  echo "Adding Application Shortcut..."
+cat > "${applications_shortcut_dir}/android-studio.desktop" <<EOL
+[Desktop Entry]
+Name=Android Studio
+Exec="${android_studio_ide_dir}/bin/studio.sh" %f
+Icon=${android_studio_ide_dir}/bin/studio.png
+Type=Application
+Categories=Development;IDE;
+Terminal=false
+EOL
+}
+
+prepare_dirs
+remove_old_ide_archives
+remove_file_with_prompt "${latest_ide_archive_filepath}" "Latest IDE Archive already exists!"
+download_file "${latest_ide_archive_url}" "${latest_ide_archive_filepath}"
+extract_ide_archive "${latest_ide_archive_filepath}"
+install_necessary_packages
+add_application_shortcut
