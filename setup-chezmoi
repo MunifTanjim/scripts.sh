@@ -15,8 +15,3 @@ echo "Setting up binary: chezmoi"
 if test "$(readlink --canonicalize-existing --no-newline /usr/local/bin/chezmoi)" != "${_xdg_bin_dir}/chezmoi"; then
   sudo ln -nsf ${_xdg_bin_dir}/chezmoi /usr/local/bin/chezmoi
 fi
-
-
-echo "Setting up bash completion..."
-mkdir -p ${_xdg_data_dir}/bash-completion/completions
-chezmoi completion bash > ${_xdg_data_dir}/bash-completion/completions/chezmoi
