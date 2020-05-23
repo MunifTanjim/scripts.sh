@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+declare -A default_completion_dir
+default_completion_dir[bash]="${HOME}/.local/share/bash-completion/completions"
+default_completion_dir[zsh]="${HOME}/.local/share/zsh/completions"
+
+declare -A completion_generator_command_template
+completion_generator_command_template[chezmoi]="{program} completion {shell}"
+completion_generator_command_template[gh]="{program} completion --shell {shell}"
+completion_generator_command_template[docker-compose]="curl -fsSL https://raw.githubusercontent.com/docker/compose/1.25.5/contrib/completion/{shell}/{filename}"
+
+generate-completion() {
+  local -r shell="${1}"
+  local -r program="${2}"
+
+  local filename="${program}"
+  if [[ ${shell} = "zsh" ]]; then
+    filename="_${filename}"
+  fi
+
+  local generator_command="${completion_generator_command_template[${program}]}"
+  generator_command="${generator_command/\{shell\}/"${shell}"}"
+  generator_command="${generator_command/\{program\}/"${program}"}"
+  generator_command="${generator_command/\{filename\}/"${filename}"}"
+
+
+  read -rp "${shell} completion dir (default: ${default_completion_dir[${shell}]}): " completion_dir
+  completion_dir="${completion_dir:-"${default_completion_dir[${shell}]}"}"
+
+  if [[ ! -d ${completion_dir} ]]; then
+    mkdir -p "${completion_dir}"
+  fi
+
+  ${generator_command} > "${completion_dir}/${filename}"
+
+  echo "Completion file stored at: ${completion_dir}/${filename}"
+
+  if [[ ${shell} = "zsh" ]]; then
+    echo
+    echo "If you use zinit, run the following:"
+    echo "$ zinit creinstall ${completion_dir}"
+    echo
+  fi
+}
+
+generate-completion "${1}" "${2}"
