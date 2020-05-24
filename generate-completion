@@ -10,6 +10,7 @@ declare -A completion_generator_command_template
 completion_generator_command_template[chezmoi]="{program} completion {shell}"
 completion_generator_command_template[gh]="{program} completion --shell {shell}"
 completion_generator_command_template[docker-compose]="curl -fsSL https://raw.githubusercontent.com/docker/compose/1.25.5/contrib/completion/{shell}/{filename}"
+completion_generator_command_template[snap]="curl -fsSL https://raw.githubusercontent.com/snapcore/snapd/master/data/completion/{shell}/{filename}"
 
 generate-completion() {
   local -r shell="${1}"
