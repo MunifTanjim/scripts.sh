@@ -14,10 +14,6 @@ sudo apt-key fingerprint 0EBFCD88
 
 echo "Adding APT Repository..."
 codename=$(lsb_release -cs)
-if [ ${codename} = "focal" ]; then
-  echo "[ ${codename} release is not supported yet, using eoan release ]"
-  codename="eoan"
-fi
 sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu ${codename} stable"
 
 echo "Installing Docker..."
@@ -29,8 +25,5 @@ sudo usermod -aG docker "${USER}"
 echo "Installing Docker Compose..."
 sudo curl -L "https://github.com/docker/compose/releases/download/1.25.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
-
-echo "Setting up Docker Compose BASH autocompletion..."
-sudo curl -L https://raw.githubusercontent.com/docker/compose/1.25.5/contrib/completion/bash/docker-compose -o /etc/bash_completion.d/docker-compose
 
 echo "Done!"
