@@ -8,7 +8,7 @@ _neovim_url="https://github.com/neovim/neovim/releases/download/${_neovim_versio
 _neovim_dir="/opt/neovim"
 
 echo "Downloading AppImage..."
-wget -qN --show-progress ${_neovim_url} -O nvim.appimage
+wget -qN --show-progress "${_neovim_url}" -O nvim.appimage
 chmod u+x nvim.appimage
 
 echo "Installation Directory: ${_neovim_dir}"
@@ -19,16 +19,7 @@ fi
 sudo mv nvim.appimage ${_neovim_dir}/nvim.appimage
 
 echo "Setting up NeoVim binary: nvim / vim"
-sudo ln -nsf ${_neovim_dir}/nvim.appimage /usr/bin/nvim
-ln -nsf /usr/bin/nvim ${HOME}/.local/bin/vim
-
-echo "Installing Plugin Manager: vim-plug"
-_plug_url="https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim"
-_plug_dir="${HOME}/.config/nvim/autoload"
-_plug_path="${_plug_dir}/plug.vim"
-
-echo "Downloading Plug vimscript..."
-mkdir -p ${_plug_dir}
-wget -qN --show-progress ${_plug_url} -O ${_plug_path}
+sudo ln -nsf ${_neovim_dir}/nvim.appimage /usr/local/bin/nvim
+ln -nsf /usr/local/bin/nvim "${HOME}/.local/bin/vim"
 
 echo "Done!"
