@@ -2,7 +2,7 @@
 
 _xdg_bin_dir="${HOME}/.local/bin"
 
-curl -fsSL https://starship.rs/install.sh | bash -s -- --bin-dir ${_xdg_bin_dir}
+curl -fsSL https://starship.rs/install.sh | bash -s -- --bin-dir ${_xdg_bin_dir} --yes
 
 echo "Setting up binary: starship"
 if test "$(readlink --canonicalize-existing --no-newline /usr/local/bin/starship)" != "${_xdg_bin_dir}/starship"; then
