@@ -1,31 +1,3 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
-
-setup-from-github-release() {
-  local -r bin="${1}"
-  local -r repo="${2}"
-  local -r url_pattern="${3}"
-
-  local -r url=$(curl -s "https://api.github.com/repos/${repo}/releases/latest" | grep "browser_download_url.*${url_pattern}" | cut -d '"' -f 4)
-
-  local -r filename="$(basename "${url}")"
-  local -r extension="${filename##*.}"
-
-  local -r filepath="/tmp/${filename}"
-
-  echo "Downloading: ${url}"
-  wget --continue --quiet --show-progress --timestamping "${url}" -O "${filepath}"
-
-  echo "Installing: ${bin}"
-  if [[ $extension = "deb" ]]; then
-    sudo dpkg -i "${filepath}"
-  else
-    echo "Extension ${extension} not supported!"
-    exit 1
-  fi
-
-  echo "Done!"
-}
-
 setup-from-github-release "gh" "cli/cli" "_linux_amd64.deb"
