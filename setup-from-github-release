@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+setup-from-github-release() {
+  local -r bin="${1}"
+  local -r repo="${2}"
+  local -r url_pattern="${3}"
+
+  local -r url=$(curl -s "https://api.github.com/repos/${repo}/releases/latest" | jq -r --arg pattern "${url_pattern}" '.assets | map(.browser_download_url) | map(select(. | test($pattern)))[0]')
+
+  local -r filename="$(basename "${url}")"
+  local -r extension="${filename##*.}"
+
+  local -r filepath="/tmp/${filename}"
+
+  echo ""
+  echo "Downloading: ${url}"
+  echo ""
+  wget --continue --quiet --show-progress --timestamping "${url}" -O "${filepath}"
+
+  echo ""
+  echo "Installing: ${bin}"
+  echo ""
+  if [[ $extension = "deb" ]]; then
+    sudo dpkg -i "${filepath}"
+  else
+    echo "Extension ${extension} not supported!"
+    exit 1
+  fi
+
+  echo ""
+  echo "Done!"
+  echo ""
+}
+
+setup-from-github-release "$@"
