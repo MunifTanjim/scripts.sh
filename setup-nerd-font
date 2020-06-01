@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+declare -A NERD_FONTS=()
+
+declare font=""
+
+_get-font-list() {
+  local api_url="https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest"
+  local urls
+
+  IFS=$'\n' read -r -d '' -a urls \
+    < <(set -o pipefail; curl -sf "${api_url}" | jq -r --arg pattern ".zip" '.assets | map(.browser_download_url) | map(select(. | test($pattern))) | .[]' && printf '\0')
+
+  local _font
+  for url in "${urls[@]}"; do
+    _font=${url##*/}
+    _font=${_font/.zip/}
+    NERD_FONTS["${_font}"]="${url}"
+  done
+}
+
+_select-font() {
+  PS3='Select Font: '
+  select _font in "${!NERD_FONTS[@]}"; do
+    if [[ -n "${_font}" ]]; then
+      if [[ -n "${NERD_FONTS[${_font}]}" ]]; then
+        font="${_font}"
+        break
+      fi
+    fi
+  done
+}
+
+_download-font() {
+  echo "Downloading font: ${font}"
+  local -r url="${NERD_FONTS[${font}]}"
+  wget --quiet --show-progress "${url}" -O "./${font}.zip"
+  
+  echo "Extracting archive..."
+  unzip -o -q "./${font}.zip" -d "${font}"
+}
+
+_update-font-cache() {
+  echo "Updating font cache..."
+  sudo fc-cache -f
+}
+
+declare NERD_FONTS_DIR="${HOME}/.fonts/nerd-fonts"
+
+mkdir -p "${NERD_FONTS_DIR}"
+cd "${NERD_FONTS_DIR}"
+
+_get-font-list
+_select-font
+_download-font
+_update-font-cache
+
+echo "Done!"
