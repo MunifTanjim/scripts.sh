@@ -8,7 +8,7 @@ _neovim_url="https://github.com/neovim/neovim/releases/download/${_neovim_versio
 _neovim_dir="/opt/neovim"
 
 echo "Downloading AppImage..."
-wget -qN --show-progress "${_neovim_url}" -O nvim.appimage
+wget --continue --quiet --show-progress --timestamping "${_neovim_url}" -O nvim.appimage
 chmod u+x nvim.appimage
 
 echo "Installation Directory: ${_neovim_dir}"
