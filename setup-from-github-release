@@ -2,7 +2,201 @@
 
 set -euo pipefail
 
-setup-from-github-release() {
+select_github_release() {
+  local -r repo="${1}"
+  local -n return_variable="${2}"
+
+  local api_url="https://api.github.com/repos/${repo}/releases"
+  local api_response="$(curl -s "${api_url}")"
+
+  local releases=()
+  local -A asset_urls_by_release=()
+
+  for encoded_payload in $(echo "${api_response}" | jq -r '.[] | { prerelease, tag_name, assets: (.assets | map(.browser_download_url)) } | @base64'); do
+    local payload="$(echo "\"${encoded_payload}\"" | jq -r '. | @base64d')"
+
+    local release="$(echo "${payload}" | jq -r '"\( if .prerelease then "🚀" else "📦" end ) \( .tag_name )"')"
+    local asset_urls=($(echo "${payload}" | jq -r '.assets | .[]'))
+
+    releases+=("${release}")
+    asset_urls_by_release["${release}"]="${asset_urls[@]}"
+  done
+
+  local -A asset_url_by_name=()
+
+  echo "Select Release:"
+  PS3='> '
+  select release in "${releases[@]}"; do
+    if [[ -n "${release}" ]]; then
+      local asset_urls=(${asset_urls_by_release[${release}]})
+
+      if [[ "${#asset_urls[@]}" = "0" ]]; then
+        echo "No assets available!"
+      else
+        for asset_url in "${asset_urls[@]}"; do
+          asset_url_by_name["$(basename "${asset_url}")"]="${asset_url}"
+        done
+        break
+      fi
+    else
+      echo "Invalid selection!"
+    fi
+  done
+
+  local asset_url
+
+  echo "Select Asset: "
+  PS3='> '
+  select asset in "${!asset_url_by_name[@]}"; do
+    if [[ -n "${asset}" ]]; then
+      asset_url="${asset_url_by_name[${asset}]}"
+      break
+    else
+      echo "Invalid selection!"
+    fi
+  done
+
+  return_variable="${asset_url}"
+}
+
+pick_file() {
+  local -r directory="${1}"
+  local -n return_variable="${2}"
+
+  local -r files=("$(find "${directory}" -type f)")
+
+  echo "Pick the executable binary:"
+  PS3='> '
+  select file in "${files[@]}"; do
+    if [[ -f "${file}" ]]; then
+      return_variable="${file}"
+      break
+    fi
+  done
+}
+
+use_binary() {
+  local -r filepath="${1}"
+  local -r filename="$(basename "${filepath}")"
+  chmod u+x "${filepath}"
+  sudo mv "${filepath}" "/usr/local/bin/${filename}"
+}
+
+handle_archive() {
+  local -r filepath="${1}"
+  local -r directory="/tmp/sfgr"
+
+  rm -rf "${directory}"
+  mkdir -p "${directory}"
+
+  local -r filename="$(basename "${filepath}")"
+
+  echo ""
+  echo "Extracting: ${filename}"
+  echo ""
+
+  case "${filename}" in
+    *.zip)
+      unzip -o -q "${filepath}" -d "${directory}"
+      ;;
+    *.tar.gz)
+      tar -xzf "${filepath}" -C "${directory}"
+      ;;
+    *)
+      echo "Unsupported filetype!"
+      exit 1
+  esac
+
+  local file
+  pick_file "${directory}" file
+  use_binary "${file}"
+}
+
+manual_handle() {
+  local -r filepath="${1}"
+
+  local -r directory="$(dirname "${filepath}")"
+  local filename="$(basename "${filepath}")"
+
+  local -A operations=()
+  operations['Rename']='rename'
+  operations['Use as Binary']='use_as_binary'
+  operations['Nothing']='nothing'
+
+  echo "What do you want to do with the file: ${filename}"
+  PS3="Operation > "
+  select operation in "${!operations[@]}"; do
+    if [[ -n "${operation}" ]]; then
+      case "${operations[${operation}]}" in
+        rename)
+          local new_filename
+          read -p "New Name [${filename}]: " new_filename
+          new_filename="${new_filename:-"${filename}"}"
+          mv "${directory}/${filename}" "${directory}/${new_filename}"
+          filename="${new_filename}"
+          ;;
+        use_as_binary)
+          use_binary "${directory}/${filename}"
+          break
+          ;;
+        nothing)
+          exit 1
+          ;;
+      esac
+    else
+      echo "Invalid selection!"
+    fi
+  done
+}
+
+handle_downloaded_package() {
+  local -r filename="${1}"
+
+  case "${filename}" in
+    *.zip)
+      handle_archive "${filepath}"
+      ;;
+    *.tar.gz)
+      handle_archive "${filepath}"
+      ;;
+    *.deb)
+      sudo dpkg -i "${filepath}"
+      ;;
+    *)
+      manual_handle "${filepath}"
+      ;;
+  esac
+}
+
+download_package() {
+  local -r url="${1}"
+  local -r filepath="${2}"
+
+  wget --continue --quiet --show-progress --timestamping "${url}" -O "${filepath}"
+}
+
+setup_from_github_release_interactive() {
+  local -r repo="${1}"
+
+  local url
+  select_github_release "${repo}" url
+
+  local -r filename="$(basename "${url}")"
+  local -r filepath="/tmp/${filename}"
+
+  echo ""
+  echo "Downloading: ${url}"
+  echo ""
+  download_package "${url}" "${filepath}"
+
+  handle_downloaded_package "${filename}"
+
+  echo ""
+  echo "Done!"
+  echo ""
+}
+
+setup_from_github_release_non_interactive() {
   local -r bin="${1}"
   local -r repo="${2}"
   local -r url_pattern="${3}"
@@ -17,21 +211,23 @@ setup-from-github-release() {
   echo ""
   echo "Downloading: ${url}"
   echo ""
-  wget --continue --quiet --show-progress --timestamping "${url}" -O "${filepath}"
+  download_package "${url}" "${filepath}"
 
   echo ""
   echo "Installing: ${bin}"
   echo ""
-  if [[ $extension = "deb" ]]; then
-    sudo dpkg -i "${filepath}"
-  else
-    echo "Extension ${extension} not supported!"
-    exit 1
-  fi
+  handle_downloaded_package "${filename}"
 
   echo ""
   echo "Done!"
   echo ""
 }
 
-setup-from-github-release "$@"
+if [[ "$#" == "1" ]]; then
+  setup_from_github_release_interactive "$@"
+elif [[ "$#" == "3" ]]; then
+  setup_from_github_release_non_interactive "$@"
+else
+  echo "Sorry mate, don't know what to do with your input!"
+  exit 1
+fi
