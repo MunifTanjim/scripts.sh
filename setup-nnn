@@ -1,13 +1,3 @@
 #!/usr/bin/env bash
 
-cd /tmp || exit
-
-_nnn_url=$(curl -s https://api.github.com/repos/jarun/nnn/releases/latest | grep "browser_download_url.*ubuntu18.04.amd64.deb" | cut -d '"' -f 4)
-
-echo "Downloading nnn..."
-wget -qN --show-progress ${_nnn_url} -O nnn.deb
-
-echo "Installing nnn..."
-sudo dpkg -i nnn.deb
-
-echo "Done!"
+setup-from-github-release "nnn" "jarun/nnn" "ubuntu$(lsb_release -rs).amd64.deb"
