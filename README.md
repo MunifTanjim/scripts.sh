@@ -1,4 +1,3 @@
-# Bash Scripts
+# Shell Scripts
 
-Customized BASH Scripts for various functions.
-
+Handy Shell Scripts.
