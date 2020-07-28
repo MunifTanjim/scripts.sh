@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # House Keeping
-_GIT_DIR="${HOME}/data/gits"
+_GIT_DIR="${HOME}/Dev/github/ilikenwf"
 mkdir -p "${_GIT_DIR}"
 cd "${_GIT_DIR}"
 
@@ -18,19 +18,14 @@ else
 fi
 
 echo "Running build..."
-sudo cp apt-fast /usr/bin/
-sudo chmod +x /usr/bin/apt-fast
+sudo cp apt-fast /usr/local/bin/
+sudo chmod +x /usr/local/bin/apt-fast
 if [[ ! -f /etc/apt-fast.conf ]]; then
   sudo cp apt-fast.conf /etc
 fi
 
 echo "Installing dependencies..."
 sudo apt install aria2
-
-echo "Setting up Bash completion..."
-sudo cp completions/bash/apt-fast /etc/bash_completion.d/
-sudo chown root:root /etc/bash_completion.d/apt-fast
-source /etc/bash_completion
 
 echo "Setting up man page..."
 sudo cp ./man/apt-fast.8 /usr/share/man/man8
