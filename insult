@@ -2,7 +2,7 @@
 
 _count=$1
 shift 1
-_separator_command="${@:-""}"
+_separator_command="${@:-"echo"}"
 
 ( expr "$_count" : '^[0-9]\{1,2\}$' >/dev/null ) || _count=1
 
