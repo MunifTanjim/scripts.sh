@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+command_exists() {
+  type "${1}" >/dev/null 2>&1
+}
+
 select_github_release() {
   local -r repo="${1}"
   local -n return_variable="${2}"
@@ -84,7 +88,7 @@ use_binary() {
 
 handle_archive() {
   local -r filepath="${1}"
-  local -r directory="/tmp/sfgr"
+  local -r directory="/tmp/setup-from-github-release"
 
   rm -rf "${directory}"
   mkdir -p "${directory}"
@@ -189,6 +193,9 @@ setup_from_github_release_interactive() {
   echo ""
   download_package "${url}" "${filepath}"
 
+  echo ""
+  echo "Installing..."
+  echo ""
   handle_downloaded_package "${filename}"
 
   echo ""
@@ -197,9 +204,8 @@ setup_from_github_release_interactive() {
 }
 
 setup_from_github_release_non_interactive() {
-  local -r bin="${1}"
-  local -r repo="${2}"
-  local -r url_pattern="${3}"
+  local -r repo="${1}"
+  local -r url_pattern="${2}"
 
   local -r url=$(curl -s "https://api.github.com/repos/${repo}/releases/latest" | jq -r --arg pattern "${url_pattern}" '.assets | map(.browser_download_url) | map(select(. | test($pattern)))[0]')
 
@@ -214,7 +220,7 @@ setup_from_github_release_non_interactive() {
   download_package "${url}" "${filepath}"
 
   echo ""
-  echo "Installing: ${bin}"
+  echo "Installing..."
   echo ""
   handle_downloaded_package "${filename}"
 
@@ -223,11 +229,16 @@ setup_from_github_release_non_interactive() {
   echo ""
 }
 
+if ! command_exists jq; then
+  echo "Missing dependency: jq"
+  exit 1
+fi
+
 if [[ "$#" == "1" ]]; then
   setup_from_github_release_interactive "$@"
-elif [[ "$#" == "3" ]]; then
+elif [[ "$#" == "2" ]]; then
   setup_from_github_release_non_interactive "$@"
 else
-  echo "Sorry mate, don't know what to do with your input!"
+  echo "Sorry mate! Something went wrong!"
   exit 1
 fi
