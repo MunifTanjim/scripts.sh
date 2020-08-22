@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+export CARGO_HOME=${CARGO_HOME:-"${HOME}/.local/share/cargo"}
+export RUSTUP_HOME=${RUSTUP_HOME:-"${HOME}/.local/share/rustup"}
+
+curl -fsSL https://sh.rustup.rs | sh -s -- --no-modify-path -y
