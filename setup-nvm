@@ -1,23 +1,24 @@
 #!/usr/bin/env bash
 
 # install/update nvm
-# https://github.com/creationix/nvm
+# https://github.com/nvm-sh/nvm
 
-_nvm_dir="${HOME}/.nvm"
-if [[ -d "${_nvm_dir}" ]]; then
+export NVM_DIR="${NVM_DIR:-"${HOME}/.local/share/nvm"}"
+
+if [[ -d "${NVM_DIR}" ]]; then
   (
     echo "nvm is already installed!"
     echo "Updating nvm..."
-    cd "${_nvm_dir}"
+    cd "${NVM_DIR}"
     git fetch origin
     git checkout $(git describe --abbrev=0 --tags --match "v[0-9]*" origin)
-  ) && source "${_nvm_dir}/nvm.sh"
+  ) && source "${NVM_DIR}/nvm.sh"
 else
   (
     echo "Installing nvm..."
-    git clone https://github.com/creationix/nvm "${_nvm_dir}"
-    cd "${_nvm_dir}"
+    git clone https://github.com/nvm-sh/nvm "${NVM_DIR}"
+    cd "${NVM_DIR}"
     git checkout $(git describe --abbrev=0 --tags --match "v[0-9]*" origin)
-  ) && source "${_nvm_dir}/nvm.sh"
+  ) && source "${NVM_DIR}/nvm.sh"
 fi
 
