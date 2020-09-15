@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+setup-from-github-release "dandavison/delta" "musl.+amd64.deb"
