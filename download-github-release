@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+_DEPENDENCIES_=("jq" "wget")
+
+for dependency in "${_DEPENDENCIES_[@]}"; do
+  if ! type "${dependency}" >/dev/null 2>&1; then
+    echo "Missing dependency: ${dependency}"
+    exit 1
+  fi
+done
+
+_INTERACTIVE_=0
+_REPO_=
+_URL_PATTERN_=
+
+while [ $# -ge 1 ]; do
+  case "$1" in
+    -i|--interactive)
+      _INTERACTIVE_=1
+      shift 1
+      ;;
+    -r|--repo)
+      _REPO_="$2"
+      shift 2
+      ;;
+    -p|--url-pattern)
+      _URL_PATTERN_="$2"
+      shift 2
+      ;;
+    *)
+      shift 1
+      ;;
+  esac
+done
+
+if [[ -z "${_REPO_}" ]]; then
+  echo "-r/--repo flag is missing"
+  exit 1
+fi
+
+if [[ "${_INTERACTIVE_}" -eq "0" ]]; then
+  if [[ -z "${_URL_PATTERN_}" ]]; then
+    echo "-p/--url-pattern flag is missing"
+    exit 1
+  fi
+fi
+
+select_github_release() {
+  local -r repo="${1}"
+  local -n return_variable="${2}"
+
+  local api_url="https://api.github.com/repos/${repo}/releases"
+  local api_response="$(curl -s "${api_url}")"
+
+  local releases=()
+  local -A asset_urls_by_release=()
+
+  for encoded_payload in $(echo "${api_response}" | jq -r '.[] | { prerelease, tag_name, assets: (.assets | map(.browser_download_url)) } | @base64'); do
+    local payload="$(echo "\"${encoded_payload}\"" | jq -r '. | @base64d')"
+
+    local release="$(echo "${payload}" | jq -r '"\( if .prerelease then "🚀" else "📦" end ) \( .tag_name )"')"
+    local asset_urls=($(echo "${payload}" | jq -r '.assets | .[]'))
+
+    releases+=("${release}")
+    asset_urls_by_release["${release}"]="${asset_urls[@]}"
+  done
+
+  local -A asset_url_by_name=()
+
+  echo "Select Release:"
+  PS3='> '
+  select release in "${releases[@]}"; do
+    if [[ -n "${release}" ]]; then
+      local asset_urls=(${asset_urls_by_release[${release}]})
+
+      if [[ "${#asset_urls[@]}" = "0" ]]; then
+        echo "No assets available!"
+      else
+        for asset_url in "${asset_urls[@]}"; do
+          asset_url_by_name["$(basename "${asset_url}")"]="${asset_url}"
+        done
+        break
+      fi
+    else
+      echo "Invalid selection!"
+    fi
+  done
+
+  local asset_url
+
+  echo "Select Asset: "
+  PS3='> '
+  select asset in "${!asset_url_by_name[@]}"; do
+    if [[ -n "${asset}" ]]; then
+      asset_url="${asset_url_by_name[${asset}]}"
+      break
+    else
+      echo "Invalid selection!"
+    fi
+  done
+
+  return_variable="${asset_url}"
+}
+
+download_github_release_interactive() {
+  local -r repo="${1}"
+
+  local url
+  select_github_release "${repo}" url
+
+  local -r filename="$(basename "${url}")"
+  local -r filepath="/tmp/${filename}"
+
+  echo ""
+  echo "Downloading: ${url}"
+  echo ""
+  wget --continue --quiet --show-progress --timestamping "${url}" -O "${filepath}"
+
+  echo ""
+  echo "Downloaded File:"
+  echo ""
+  echo "${filepath}"
+  echo ""
+  echo "Done!"
+  echo ""
+}
+
+download_github_release_non_interactive() {
+  local -r repo="${1}"
+  local -r url_pattern="${2}"
+
+  local -r url=$(curl -s "https://api.github.com/repos/${repo}/releases/latest" | jq -r --arg pattern "${url_pattern}" '.assets | map(.browser_download_url) | map(select(. | test($pattern)))[0]')
+
+  local -r filename="$(basename "${url}")"
+  local -r extension="${filename##*.}"
+
+  local -r filepath="/tmp/${filename}"
+
+  wget --continue --quiet --timestamping "${url}" -O "${filepath}"
+
+  echo "${filepath}"
+}
+
+if [[ "${_INTERACTIVE_}" == "1" ]]; then
+  download_github_release_interactive "${_REPO_}"
+else
+  download_github_release_non_interactive "${_REPO_}" "${_URL_PATTERN_}"
+fi
