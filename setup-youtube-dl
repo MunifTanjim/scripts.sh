@@ -1,9 +1,32 @@
 #!/usr/bin/env bash
 
-__binary_path="${HOME}/.local/bin/youtube-dl"
+set -eu
 
-echo "Downloading youtube-dl binary: youtube-dl"
-wget -q --show-progress https://yt-dl.org/downloads/latest/youtube-dl -O ${__binary_path}
-chmod u+x ${__binary_path}
+temp_dir="$(mktemp --directory /tmp/youtube-dl--XXXXXXXXX)"
+
+prefix_path="${HOME}/.local"
+
+move() {
+  src="$1"
+  dest="$2"
+  dest_dir="$(dirname "$dest")"
+  if [ ! -d "${dest_dir}" ]; then
+    mkdir -p "${dest_dir}"
+  fi
+  mv "${src}" "${dest}"
+}
+
+echo "Downloading archive..."
+filepath=$(download-github-release --repo "ytdl-org/youtube-dl" --url-pattern "tar.gz$")
+
+echo "Extracting archive..."
+tar -xz -C "${temp_dir}" -f "${filepath}" youtube-dl/youtube-dl{,.1,.bash-completion,.zsh}
+cd "${temp_dir}/youtube-dl"
+
+echo "Setting up: youtube-dl"
+move ./youtube-dl "${prefix_path}/bin/youtube-dl"
+move ./youtube-dl.1 "${prefix_path}/man/man1/youtube-dl.1"
+move ./youtube-dl.bash-completion "${prefix_path}/share/bash-completion/youtube-dl"
+move ./youtube-dl.zsh "${prefix_path}/share/zsh/completions/_youtube-dl"
 
 echo "Done!"
