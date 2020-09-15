@@ -10,12 +10,15 @@ declare -A completion_generator_command_template
 completion_generator_command_template[apt-fast]="curl -fsSL https://raw.githubusercontent.com/ilikenwf/apt-fast/master/completions/{shell}/{filename}"
 completion_generator_command_template[chezmoi]="{program} completion {shell}"
 completion_generator_command_template[cargo]="rustup completions {shell} {program}"
+completion_generator_command_template[delta]="curl -fsSL https://raw.githubusercontent.com/dandavison/delta/master/etc/completion/completion.{shell}"
 completion_generator_command_template[deno]="{program} completions {shell}"
 completion_generator_command_template[docker-compose]="curl -fsSL https://raw.githubusercontent.com/docker/compose/1.25.5/contrib/completion/{shell}/{filename}"
 completion_generator_command_template[exa]="curl -fsSL https://raw.githubusercontent.com/ogham/exa/master/contrib/completions.{shell}"
 completion_generator_command_template[gh]="{program} completion --shell {shell}"
 completion_generator_command_template[lf]="curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/master/etc/{program}.{shell}"
 completion_generator_command_template[nvm:bash]="curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/bash_completion"
+completion_generator_command_template[pyenv]="cat ${PYENV_ROOT}/completions/pyenv.{shell}"
+completion_generator_command_template[rbenv]="cat ${RBENV_ROOT}/completions/pyenv.{shell}"
 completion_generator_command_template[rustup]="{program} completions {shell}"
 completion_generator_command_template[snap]="curl -fsSL https://raw.githubusercontent.com/snapcore/snapd/master/data/completion/{shell}/{filename}"
 completion_generator_command_template[starship]="{program} completions {shell}"
@@ -23,7 +26,7 @@ completion_generator_command_template[volta]="{program} completions {shell}"
 
 generate-completion() {
   local -r program="${1}"
-  local -r shell="${2-$SHELL}"
+  local -r shell="${2:-"$(basename "$(echo $SHELL)")"}"
 
   local filename="${program}"
   if [[ ${shell} = "zsh" ]]; then
