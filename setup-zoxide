@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+filepath=$(download-github-release --repo "ajeetdsouza/zoxide" --url-pattern "x86_64.+linux-musl")
+
+echo "Setting up binary: zoxide"
+chmod u+x "${filepath}"
+sudo mv "${filepath}" "/usr/local/bin/zoxide"
