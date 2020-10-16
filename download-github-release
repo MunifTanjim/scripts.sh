@@ -12,11 +12,16 @@ for dependency in "${_DEPENDENCIES_[@]}"; do
 done
 
 _INTERACTIVE_=0
+_SOURCE_=0
 _REPO_=
 _URL_PATTERN_=
 
 while [ $# -ge 1 ]; do
   case "$1" in
+    -s|--source)
+      _SOURCE_=1
+      shift 1
+      ;;
     -i|--interactive)
       _INTERACTIVE_=1
       shift 1
@@ -40,7 +45,7 @@ if [[ -z "${_REPO_}" ]]; then
   exit 1
 fi
 
-if [[ "${_INTERACTIVE_}" -eq "0" ]]; then
+if [[ "${_INTERACTIVE_}" -eq "0" ]] && [[ "${_SOURCE_}" -eq "0" ]]; then
   if [[ -z "${_URL_PATTERN_}" ]]; then
     echo "-p/--url-pattern flag is missing"
     exit 1
@@ -143,8 +148,27 @@ download_github_release_non_interactive() {
   echo "${filepath}"
 }
 
+download_github_release_source_non_interactive() {
+  local -r repo="${1}"
+
+  local -r url=$(curl -s "https://api.github.com/repos/${repo}/releases/latest" | jq -r '.tarball_url')
+
+  local -r filename="$(basename "${url}")"
+  local -r extension="${filename##*.}"
+
+  local -r filepath="/tmp/${repo//\//-}-${filename}.tar.gz"
+
+  wget --continue --quiet --timestamping "${url}" -O "${filepath}"
+
+  echo "${filepath}"
+}
+
 if [[ "${_INTERACTIVE_}" == "1" ]]; then
   download_github_release_interactive "${_REPO_}"
 else
-  download_github_release_non_interactive "${_REPO_}" "${_URL_PATTERN_}"
+  if [[ "${_SOURCE_}" == "1" ]]; then
+    download_github_release_source_non_interactive "${_REPO_}"
+  else
+    download_github_release_non_interactive "${_REPO_}" "${_URL_PATTERN_}"
+  fi
 fi
