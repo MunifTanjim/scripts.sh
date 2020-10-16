@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+echo "Installing dependencies..."
+sudo apt install libsasl2-dev libsasl2-modules-kdexoauth2
+
+source_archive="/tmp/isync-latest.tar.gz"
+
+echo "Downloading source archive..."
+wget --continue --quiet --show-progress --timestamping "https://sourceforge.net/projects/isync/files/latest/download" -O "${source_archive}"
+
+temp_dir=$(mktemp -d /tmp/isync--XXXXXXXXX)
+
+echo "Extracting source archive..."
+tar --strip-components=1 -xvzf "${source_archive}" -C "${temp_dir}"
+
+cd "${temp_dir}"
+
+echo "Installing..."
+
+./configure
+make
+sudo make install
+
+sudo rm -rf "${temp_dir}"
