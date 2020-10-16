@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+function ensure_value() {
+  if [ -z ${!1} ]; then
+    >&2 echo "${2}"
+    exit 1
+  fi
+}
+
+action="${1}"
+account_alias="${2-""}"
+
+ensure_value "account_alias" "missing: account_alias"
+
+client_id_attributes="service gmail credential oauth2_client data client_id"
+client_secret_attributes="service gmail credential oauth2_client data client_secret"
+refresh_token_attributes="service gmail credential oauth2_client data refresh_token account ${account_alias}"
+access_token_attributes="service gmail credential oauth2_client data access_token account ${account_alias}"
+access_token_expires_at_attributes="service gmail credential oauth2_client data access_token_expires_at account ${account_alias}"
+
+function get_client_id() {
+  local -r client_id="$(secret-tool lookup ${client_id_attributes} || true)"
+  printf "${client_id}"
+}
+
+function get_client_secret() {
+  local -r client_secret="$(secret-tool lookup ${client_secret_attributes} || true)"
+  printf "${client_secret}"
+}
+
+function get_refresh_token() {
+  local -r refresh_token="$(secret-tool lookup ${refresh_token_attributes} || true)"
+  printf "${refresh_token}"
+}
+
+function store_client_info() {
+  local client_id=$(get_client_id)
+  local client_secret=$(get_client_secret)
+
+  if [ -z "${client_id}" ] || [ -z "${client_secret}" ]; then
+    echo ""
+    echo "Unlocking Password Storage..."
+    echo ""
+    local -r bw_session=$(bw unlock --raw)
+    echo ""
+
+    local -r client_blob=$(bw list items --session ${bw_session} --folderid null --search "Google - OAuth2 - Email Client" | jq -Mcr '.[0]') 
+
+    ensure_value "client_blob" "missing: bitwarden item for Google - OAuth2 - Email Client"
+
+    client_id=$(echo "${client_blob}" | jq -r '.fields[] | select(.name=="ClientID").value')
+    ensure_value "client_id" "missing: ClientID in bitwarden item for Google - OAuth2 - Email Client"
+
+    echo "Storing client_id..."
+    printf "${client_id}" | secret-tool store --label="Gmail-OAuth2/ClientID" ${client_id_attributes}
+
+    client_secret=$(echo "${client_blob}" | jq -r '.fields[] | select(.name=="ClientSecret").value')
+    ensure_value "client_secret" "missing: ClientSecret in bitwarden item for Google - OAuth2 - Email Client"
+
+    echo "Storing client_secret..."
+    printf "${client_secret}" | secret-tool store --label="Gmail-OAuth2/ClientSecret" ${client_secret_attributes}
+  fi
+}
+
+function store_refresh_token() {
+  local -r refresh_token=$(get_refresh_token)
+
+  if [ -z "${refresh_token}" ]; then
+    local -r client_id=$(get_client_id)
+    ensure_value "client_id" "missing: client_id"
+
+    local -r client_secret=$(get_client_secret)
+    ensure_value "client_secret" "missing: client_secret"
+
+    echo ""
+    echo "For authorization code, visit this url and follow the instructions:"
+    echo "  https://accounts.google.com/o/oauth2/auth?client_id=${client_id}&redirect_uri=urn:ietf:wg:oauth:2.0:oob&response_type=code&scope=https://mail.google.com/"
+    echo ""
+    read -p "Enter authorization code: " authorization_code
+    echo ""
+
+    local -r refresh_token=$(curl --silent --request POST \
+      --data "code=${authorization_code}&client_id=${client_id}&client_secret=${client_secret}&redirect_uri=urn:ietf:wg:oauth:2.0:oob&grant_type=authorization_code" \
+      https://accounts.google.com/o/oauth2/token | jq -r '.refresh_token')
+
+    echo "Storing refresh_token..."
+    printf "${refresh_token}" | secret-tool store --label="Gmail-OAuth2/RefreshToken" ${refresh_token_attributes}
+  fi
+}
+
+
+function get_fresh_access_token() {
+  local -r client_id=$(get_client_id)
+  ensure_value "client_id" "missing: client_id"
+
+  local -r client_secret=$(get_client_secret)
+  ensure_value "client_secret" "missing: client_secret"
+
+  local -r refresh_token=$(get_refresh_token)
+  ensure_value "client_secret" "missing: refresh_token"
+
+  local -r access_token_blob=$(curl --silent --request POST \
+    --data "client_id=${client_id}&client_secret=${client_secret}&refresh_token=${refresh_token}&grant_type=refresh_token" \
+    https://accounts.google.com/o/oauth2/token)
+
+  local -r access_token=$(echo "${access_token_blob}" | jq -r '.access_token')
+  local -r expires_in=$(echo "${access_token_blob}" | jq -r '.expires_in')
+
+  local -r now=$(date +%s)
+  local -r expires_at=$((now + expires_in))
+
+  printf "${access_token}" | secret-tool store --label="Gmail-OAuth2/AccessToken" ${access_token_attributes}
+  printf "${expires_at}" | secret-tool store --label="Gmail-OAuth2/AccessToken/ExpiresAt" ${access_token_expires_at_attributes}
+
+  printf "${access_token}"
+}
+
+function get_access_token() {
+  local -r now=$(date +%s)
+
+  local access_token="$(secret-tool lookup ${access_token_attributes} || true)"
+  local -r expires_at="$(secret-tool lookup ${access_token_expires_at_attributes} || true)"
+
+  if [[ "${access_token}" && "${expires_at}" && $now -lt $((expires_at - 60)) ]]; then
+    printf "${access_token}"
+  else
+    get_fresh_access_token
+  fi
+}
+
+case "${action}" in
+  initialize)
+    store_client_info
+    store_refresh_token
+    ;;
+  access_token)
+    get_access_token
+    ;;
+  *)
+    echo "unsupported action: ${action}!"
+    exit 1
+    ;;
+esac
