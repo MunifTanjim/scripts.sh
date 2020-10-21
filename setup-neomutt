@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+echo "Installing dependencies..."
+sudo apt install docbook-xsl gettext libgpgme-dev libidn11-dev libkrb5-dev liblua5.3-dev libnotmuch-dev libsasl2-dev libsasl2-modules xsltproc
+
+echo "Downloading source archive..."
+source_archive=$(download-github-release --repo "neomutt/neomutt" --source)
+
+echo "Extracting source archive..."
+temp_dir=$(mktemp -d /tmp/neomutt--XXXXXXXXX)
+tar --strip-components=1 -xvzf "${source_archive}" -C "${temp_dir}"
+
+echo "Installing..."
+cd "${temp_dir}"
+./configure --with-ui=ncurses --gpgme --gss --sasl --ssl --lua --notmuch --mixmaster --gdbm --homespool
+make
+sudo make install
+
+echo "Cleaning up..."
+rm -rf "${temp_dir}"
