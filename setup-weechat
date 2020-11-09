@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+echo "Updating APT Cache..."
+sudo apt-get update
+
+echo "Installing dependencies..."
+sudo apt-get install dirmngr gpg-agent apt-transport-https
+
+echo "Adding official GPG key..."
+sudo apt-key adv --keyserver hkps://keys.openpgp.org --recv-keys 11E9DE8848F2B65222AA75B8D1820DB22A11534E
+
+echo "Adding APT Repository..."
+codename=$(lsb_release -cs)
+echo "deb https://weechat.org/ubuntu ${codename} main" | sudo tee /etc/apt/sources.list.d/weechat.list
+
+echo "Updating APT Cache..."
+sudo apt-get update
+
+echo "Installing..."
+sudo apt-get install -y weechat-curses weechat-plugins weechat-python weechat-perl
+
+echo "Done!"
