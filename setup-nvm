@@ -6,19 +6,14 @@
 export NVM_DIR="${NVM_DIR:-"${HOME}/.local/share/nvm"}"
 
 if [[ -d "${NVM_DIR}" ]]; then
-  (
-    echo "nvm is already installed!"
-    echo "Updating nvm..."
-    cd "${NVM_DIR}"
-    git fetch origin
-    git checkout $(git describe --abbrev=0 --tags --match "v[0-9]*" origin)
-  ) && source "${NVM_DIR}/nvm.sh"
+  echo "nvm is already installed!"
+  echo "Updating nvm..."
+  cd "${NVM_DIR}"
+  git fetch origin
 else
-  (
-    echo "Installing nvm..."
-    git clone https://github.com/nvm-sh/nvm "${NVM_DIR}"
-    cd "${NVM_DIR}"
-    git checkout $(git describe --abbrev=0 --tags --match "v[0-9]*" origin)
-  ) && source "${NVM_DIR}/nvm.sh"
+  echo "Installing nvm..."
+  git clone https://github.com/nvm-sh/nvm "${NVM_DIR}"
+  cd "${NVM_DIR}"
 fi
 
+git checkout $(git describe --abbrev=0 --tags --match "v[0-9]*" origin)
