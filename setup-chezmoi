@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 
-_xdg_bin_dir="${HOME}/.local/bin"
-_xdg_data_dir="${HOME}/.local/share"
+if [[ $OSTYPE = darwin* ]]; then
+  BINDIR="/usr/local/bin"
+else
+  BINDIR="${HOME}/.local/bin"
+fi
 
 if type chezmoi >/dev/null 2>&1; then
   echo "Upgrading chezmoi..."
   chezmoi upgrade
 else
   echo "Installing chezmoi..."
-  curl -sfL https://git.io/chezmoi | sh -s -- -b ${_xdg_bin_dir}
+  curl -sfL https://git.io/chezmoi | sh -s -- -b ${BINDIR}
 fi
 
-echo "Setting up binary: chezmoi"
-if test "$(readlink --canonicalize-existing --no-newline /usr/local/bin/chezmoi)" != "${_xdg_bin_dir}/chezmoi"; then
-  sudo ln -nsf ${_xdg_bin_dir}/chezmoi /usr/local/bin/chezmoi
+if test "/usr/local/bin/chezmoi" != "${BINDIR}/chezmoi"; then
+  echo "Setting up binary: chezmoi"
+  sudo ln -nsf ${BINDIR}/chezmoi /usr/local/bin/chezmoi
 fi
