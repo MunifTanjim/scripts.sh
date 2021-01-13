@@ -3,4 +3,6 @@
 export CARGO_HOME=${CARGO_HOME:-"${HOME}/.local/share/cargo"}
 export RUSTUP_HOME=${RUSTUP_HOME:-"${HOME}/.local/share/rustup"}
 
+export RUSTUP_INIT_SKIP_PATH_CHECK=yes
+
 curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- --no-modify-path -y
