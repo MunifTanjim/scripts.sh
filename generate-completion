@@ -8,6 +8,8 @@ default_completion_dir[zsh]="${HOME}/.local/share/zsh/completions"
 
 declare -A completion_generator_command_template
 completion_generator_command_template[apt-fast]="curl -fsSL https://raw.githubusercontent.com/ilikenwf/apt-fast/master/completions/{shell}/{filename}"
+completion_generator_command_template[alacritty]="curl -fsSL https://raw.githubusercontent.com/alacritty/alacritty/master/extra/completions/{program}.{shell}"
+completion_generator_command_template[alacritty:zsh]="curl -fsSL https://raw.githubusercontent.com/alacritty/alacritty/master/extra/completions/{filename}"
 completion_generator_command_template[chezmoi]="{program} completion {shell}"
 completion_generator_command_template[cargo]="rustup completions {shell} {program}"
 completion_generator_command_template[delta]="curl -fsSL https://raw.githubusercontent.com/dandavison/delta/master/etc/completion/completion.{shell}"
@@ -33,13 +35,15 @@ generate-completion() {
     filename="_${filename}"
   fi
 
-  local generator_command="${completion_generator_command_template[${program}]}"
+  # check shell specific command first
+  local generator_command="${generator_command:-${completion_generator_command_template[${program}:${shell}]}}"
+  # fallback to generic command
+  generator_command="${generator_command:-${completion_generator_command_template[${program}]}}"
+
   generator_command="${generator_command/\{shell\}/"${shell}"}"
   generator_command="${generator_command/\{program\}/"${program}"}"
   generator_command="${generator_command/\{filename\}/"${filename}"}"
 
-  # fallback to shell specific ones
-  generator_command="${generator_command:-${completion_generator_command_template[${program}:${shell}]}}"
 
   if [[ -z $generator_command ]]; then
     echo "Couldn't resolve generator command!"
