@@ -4,69 +4,183 @@ set -eo pipefail
 
 declare -A default_completion_dir
 default_completion_dir[bash]="${HOME}/.local/share/bash-completion/completions"
+default_completion_dir[fish]="${HOME}/.config/fish/completions"
 default_completion_dir[zsh]="${HOME}/.local/share/zsh/completions"
 
 declare -A completion_generator_command_template
+completion_generator_command_template[alacritty:bash]="curl -fsSL https://raw.githubusercontent.com/alacritty/alacritty/master/extra/completions/{bin}.{shell}"
+completion_generator_command_template[alacritty]="curl -fsSL https://raw.githubusercontent.com/alacritty/alacritty/master/extra/completions/{filename}"
 completion_generator_command_template[apt-fast]="curl -fsSL https://raw.githubusercontent.com/ilikenwf/apt-fast/master/completions/{shell}/{filename}"
-completion_generator_command_template[alacritty]="curl -fsSL https://raw.githubusercontent.com/alacritty/alacritty/master/extra/completions/{program}.{shell}"
-completion_generator_command_template[alacritty:zsh]="curl -fsSL https://raw.githubusercontent.com/alacritty/alacritty/master/extra/completions/{filename}"
-completion_generator_command_template[chezmoi]="{program} completion {shell}"
-completion_generator_command_template[cargo]="rustup completions {shell} {program}"
+completion_generator_command_template[cargo]="rustup completions {shell} {bin}"
+completion_generator_command_template[chezmoi]="{bin} completion {shell}"
 completion_generator_command_template[delta]="curl -fsSL https://raw.githubusercontent.com/dandavison/delta/master/etc/completion/completion.{shell}"
-completion_generator_command_template[deno]="{program} completions {shell}"
-completion_generator_command_template[docker-compose]="curl -fsSL https://raw.githubusercontent.com/docker/compose/1.25.5/contrib/completion/{shell}/{filename}"
-completion_generator_command_template[exa]="curl -fsSL https://raw.githubusercontent.com/ogham/exa/master/contrib/completions.{shell}"
-completion_generator_command_template[gh]="{program} completion --shell {shell}"
-completion_generator_command_template[lf]="curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/master/etc/{program}.{shell}"
-completion_generator_command_template[nvm:bash]="curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/bash_completion"
-completion_generator_command_template[pyenv]="cat ${PYENV_ROOT}/completions/pyenv.{shell}"
-completion_generator_command_template[rbenv]="cat ${RBENV_ROOT}/completions/pyenv.{shell}"
-completion_generator_command_template[rustup]="{program} completions {shell}"
+completion_generator_command_template[deno]="{bin} completions {shell}"
+completion_generator_command_template[docker-compose]="curl -fsSL https://raw.githubusercontent.com/docker/compose/master/contrib/completion/{shell}/{filename}"
+completion_generator_command_template[docker]="curl -fsSL https://raw.githubusercontent.com/docker/cli/master/contrib/completion/{shell}/{filename}"
+completion_generator_command_template[exa]="curl -fsSL https://raw.githubusercontent.com/ogham/exa/master/completions/completions.{shell}"
+completion_generator_command_template[gh]="{bin} completion --shell {shell}"
+completion_generator_command_template[lf]="curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/master/etc/{bin}.{shell}"
+completion_generator_command_template[nvm:bash]="curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/{shell}_completion"
+completion_generator_command_template[pyenv]="curl -fsSL https://raw.githubusercontent.com/pyenv/pyenv/master/completions/{bin}.{shell}"
+completion_generator_command_template[rbenv]="curl -fsSL https://raw.githubusercontent.com/rbenv/rbenv/master/completions/{bin}.{shell}"
+completion_generator_command_template[rustup]="{bin} completions {shell}"
 completion_generator_command_template[snap]="curl -fsSL https://raw.githubusercontent.com/snapcore/snapd/master/data/completion/{shell}/{filename}"
-completion_generator_command_template[starship]="{program} completions {shell}"
-completion_generator_command_template[volta]="{program} completions {shell}"
+completion_generator_command_template[starship]="{bin} completions {shell}"
+completion_generator_command_template[volta]="{bin} completions {shell}"
 
-generate-completion() {
-  local -r program="${1}"
-  local -r shell="${2:-"$(basename "$(echo $SHELL)")"}"
+declare -a valid_shells=("bash" "fish" "zsh")
 
-  local filename="${program}"
+is-valid-shell() {
+  local -r shell="${1}"
+  printf '%s\n' "${valid_shells[@]}" | grep -q -e "^${shell}$"
+}
+
+declare -a valid_tools=()
+for tool in "${!completion_generator_command_template[@]}"; do
+  valid_tools+=("${tool%%:*}")
+done
+valid_tools=($(printf '%s\n' "${valid_tools[@]}" | sort | uniq))
+
+is-valid-tool() {
+  local -r tool="${1}"
+  printf '%s\n' "${valid_tools[@]}" | grep -q -e "^${tool}$"
+}
+
+declare shell="$(basename "$(echo ${SHELL})")"
+
+show-help() {
+  echo "Usage:"
+  echo "  generate-completion [OPTIONS] [TOOLS..]"
+  echo
+  echo "OPTIONS"
+  echo "  --all          generate for all available tools"
+  echo "  --dir          completion script directory"
+  echo "                   (default: ${default_completion_dir[${shell}]})"
+  echo "  --shell SHELL  name of the shell"
+  echo "                   (default: ${shell})"
+  echo "  --yes          non-interactive mode"
+  echo
+  echo "TOOLS"
+  for tool in ${valid_tools[@]}; do
+    echo " - ${tool}"
+  done
+  echo
+  echo "SHELL"
+  for shell in ${valid_shells[@]}; do
+    echo " - ${shell}"
+  done
+}
+
+completion_dir=""
+interactive="yes"
+tools=()
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --all)
+      tools=(${valid_tools[@]})
+      shift $#;;
+    --dir)
+      completion_dir="${2}"
+      shift 2;;
+    --debug)
+      set -x
+      shift;;
+    --help|-h)
+      show-help
+      exit 0
+      shift;;
+    --shell)
+      if ! is-valid-shell "${2}"; then
+        echo "[error] unsupported shell: ${2}!"
+        exit 1
+      fi
+
+      shell="${2}"
+      shift 2;;
+    --yes)
+      interactive="no"
+      shift;;
+    -*)
+      shift;;
+    *)
+      if ! is-valid-tool "${1}"; then
+        echo "[error] unsupported tool: ${1}!"
+        exit 1
+      fi
+
+      tools+=("${1}")
+      shift;;
+  esac
+done
+
+if [[ ${#tools[@]} -eq 0 ]]; then
+  show-help
+  exit 1
+fi
+
+if [[ ${shell} = "fish" ]]; then
+  echo "[warn] ${shell} support is experimental!"
+  read -rp "do you want to continue? (yN): " proceed
+  if [[ ${proceed} != "y" ]]; then
+    exit 0
+  fi
+  echo
+fi
+
+if [[ $interactive = "yes" ]]; then
+  read -rp "${shell} completion dir (default: ${default_completion_dir[${shell}]}): " completion_dir
+  completion_dir="${completion_dir:-"${default_completion_dir[${shell}]}"}"
+  echo
+elif [[ $interactive = "no" ]]; then
+  completion_dir="${completion_dir:-"${default_completion_dir[${shell}]}"}"
+fi
+
+if [[ ! -d ${completion_dir} ]]; then
+  mkdir -p "${completion_dir}"
+fi
+
+echo "[info] COMPLETION_DIR=${completion_dir}"
+
+for bin in ${tools[@]}; do
+  echo
+
+  declare filename="${bin}"
   if [[ ${shell} = "zsh" ]]; then
     filename="_${filename}"
   fi
 
   # check shell specific command first
-  local generator_command="${generator_command:-${completion_generator_command_template[${program}:${shell}]}}"
+  declare generator_command="${completion_generator_command_template[${bin}:${shell}]}"
   # fallback to generic command
-  generator_command="${generator_command:-${completion_generator_command_template[${program}]}}"
+  generator_command="${generator_command:-${completion_generator_command_template[${bin}]}}"
 
   generator_command="${generator_command/\{shell\}/"${shell}"}"
-  generator_command="${generator_command/\{program\}/"${program}"}"
+  generator_command="${generator_command/\{bin\}/"${bin}"}"
   generator_command="${generator_command/\{filename\}/"${filename}"}"
 
-
   if [[ -z $generator_command ]]; then
-    echo "Couldn't resolve generator command!"
-    exit 1
+    echo "[warn] [${bin}] missing generator command for ${shell}!"
+    continue
   fi
 
-  read -rp "${shell} completion dir (default: ${default_completion_dir[${shell}]}): " completion_dir
-  completion_dir="${completion_dir:-"${default_completion_dir[${shell}]}"}"
-
-  if [[ ! -d ${completion_dir} ]]; then
-    mkdir -p "${completion_dir}"
+  if [[ $generator_command == "${bin} "*  ]]; then
+    if ! type ${bin} >/dev/null 2>&1; then
+      echo "[warn] [${bin}] skipped! binary not found!"
+      continue
+    fi
   fi
 
   ${generator_command} > "${completion_dir}/${filename}"
 
-  echo "Completion file stored at: ${completion_dir}/${filename}"
+  echo "[info] [${bin}] completion script stored at: COMPLETION_DIR/${filename}"
 
   if [[ ${shell} = "zsh" ]]; then
-    echo
-    echo "If you use zinit, run the following:"
-    echo "$ zinit creinstall ${completion_dir}"
-    echo
+    if type zinit >/dev/null 2>&1; then
+      echo
+      echo "If you use zinit, run the following:"
+      echo "$ zinit creinstall ${completion_dir}"
+      echo
+    fi
   fi
-}
-
-generate-completion "${1}" "${2}"
+done
