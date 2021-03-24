@@ -5,4 +5,16 @@ export RUSTUP_HOME=${RUSTUP_HOME:-"${HOME}/.local/share/rustup"}
 
 export RUSTUP_INIT_SKIP_PATH_CHECK=yes
 
-curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- --no-modify-path -y
+readonly rustup="${CARGO_HOME}/bin/rustup"
+
+if test -x "${rustup}"; then
+  echo "info: already installed"
+  echo "info: trying to update"
+  echo
+  ${rustup} update
+else
+  echo "info: trying to install"
+  echo
+  curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- --no-modify-path -y
+fi
+
