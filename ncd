@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+command_exists() {
+  type "${1}" >/dev/null 2>&1
+}
+
+function_exists() {
+  declare -F "${1}" >/dev/null
+}
+
+ensure_command() {
+  if ! command_exists "${1}"; then
+    echo "command not found: ${1}"
+    exit 1
+  fi
+}
+
+ensure_file() {
+  if ! [[ -e "${1}" ]]; then
+    echo "file not found: ${1}"
+    exit 1
+  fi
+}
+
+config() {
+  local -r query="${1}"
+  if [[ -z "${ncd_config}" ]]; then
+    ensure_file ~/.newscred.yaml
+    declare -g ncd_config=$(cat ~/.newscred.yaml | rq --input-yaml | jq -r '.ncd')
+  fi
+  echo $ncd_config | jq -r "${query}"
+}
+
+ncd_user() {
+  config '.ssh_user'
+}
+
+ncd_remotedev_ip() {
+  aws ec2 describe-instances --filters "Name=tag:Name,Values=$(ncd remotedev:name)" --output text --query 'Reservations[*].Instances[*].PrivateIpAddress' | cat
+}
+
+ncd_remotedev_name() {
+  config '.remotedev_name'
+}
+
+ncd_remotedev_mosh() {
+  mosh $(ncd user)@$(ncd remotedev:ip)
+}
+
+ncd_remotedev_ssh() {
+  ssh $(ncd user)@$(ncd remotedev:ip)
+}
+
+ncd_remotedev_ssh_run() {
+  ssh $(ncd user)@$(ncd remotedev:ip) -- $@
+}
+
+ncd() {
+  local -r cmd="${1}"
+  shift
+
+  if [[ -z "${cmd}" ]]; then
+    echo "no command given!"
+    exit 1
+  fi
+
+  local -r func="ncd_${cmd//:/_}"
+
+  if ! function_exists "${func}"; then
+    echo "invalid command: ${cmd}"
+    exit 1
+  fi
+
+  $func $@
+}
+
+ensure_command aws
+ensure_command jq
+ensure_command rq
+
+ncd $@
