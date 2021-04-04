@@ -20,6 +20,7 @@ completion_generator_command_template[docker]="curl -fsSL https://raw.githubuser
 completion_generator_command_template[exa]="curl -fsSL https://raw.githubusercontent.com/ogham/exa/master/completions/completions.{shell}"
 completion_generator_command_template[gh]="{bin} completion --shell {shell}"
 completion_generator_command_template[lf]="curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/master/etc/{bin}.{shell}"
+completion_generator_command_template[netlify]="{bin} completion:generate --shell {shell}"
 completion_generator_command_template[nvm:bash]="curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/{shell}_completion"
 completion_generator_command_template[pyenv]="curl -fsSL https://raw.githubusercontent.com/pyenv/pyenv/master/completions/{bin}.{shell}"
 completion_generator_command_template[rbenv]="curl -fsSL https://raw.githubusercontent.com/rbenv/rbenv/master/completions/{bin}.{shell}"
@@ -174,13 +175,13 @@ for bin in ${tools[@]}; do
   ${generator_command} > "${completion_dir}/${filename}"
 
   echo "[info] [${bin}] completion script stored at: COMPLETION_DIR/${filename}"
-
-  if [[ ${shell} = "zsh" ]]; then
-    if type zinit >/dev/null 2>&1; then
-      echo
-      echo "If you use zinit, run the following:"
-      echo "$ zinit creinstall ${completion_dir}"
-      echo
-    fi
-  fi
 done
+
+if [[ ${shell} = "zsh" ]]; then
+  if [[ -d "${ZINIT_HOME}" ]]; then
+    echo
+    echo "If you use zinit, run the following:"
+    echo "$ zinit creinstall ${completion_dir}"
+    echo
+  fi
+fi
