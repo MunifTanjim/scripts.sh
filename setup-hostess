@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+declare pattern
+
+case $OSTYPE in
+  darwin*)
+    pattern="_macos_amd64";;
+  linux*)
+    pattern="_linux_amd64";;
+  *)
+    exit 1;;
+esac
+
+filepath=$(download-github-release --repo "cbednarski/hostess" --url-pattern "${pattern}")
+
+echo "Setting up binary: hostess"
+chmod u+x "${filepath}"
+sudo mv "${filepath}" "/usr/local/bin/hostess"
