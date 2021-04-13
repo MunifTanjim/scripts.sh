@@ -31,28 +31,34 @@ config() {
   echo $ncd_config | jq -r "${query}"
 }
 
-ncd_user() {
-  config '.ssh_user'
+ncd_config() {
+  config $1
+}
+
+ncd_remotedev_services() {
+  local -r compose_file="$(ncd remotedev:ssh:run 'cat /mnt/ephemeral/workspace/docker-compose.yml')"
+  local -r services="$(echo "${compose_file}" | rq --input-yaml | jq -r '.services | keys | .[]')"
+  echo "$services"
 }
 
 ncd_remotedev_ip() {
-  aws ec2 describe-instances --filters "Name=tag:Name,Values=$(ncd remotedev:name)" --output text --query 'Reservations[*].Instances[*].PrivateIpAddress' | cat
-}
-
-ncd_remotedev_name() {
-  config '.remotedev_name'
+  aws ec2 describe-instances --filters "Name=tag:Name,Values=$(ncd config '.ec2_name')" --output text --query 'Reservations[*].Instances[*].PrivateIpAddress' | cat
 }
 
 ncd_remotedev_mosh() {
-  mosh $(ncd user)@$(ncd remotedev:ip)
+  mosh $(ncd config '.ssh_user')@$(ncd config '.ssh_host')
 }
 
 ncd_remotedev_ssh() {
-  ssh $(ncd user)@$(ncd remotedev:ip)
+  ssh $(ncd config '.ssh_user')@$(ncd config '.ssh_host')
+}
+
+ncd_remotedev_ssh_cdp() {
+  ssh -t $(ncd config '.ssh_user')@$(ncd remotedev:ip) -- "cd /mnt/ephemeral/workspace/${1}; bash -l"
 }
 
 ncd_remotedev_ssh_run() {
-  ssh $(ncd user)@$(ncd remotedev:ip) -- $@
+  ssh -t $(ncd config '.ssh_user')@$(ncd remotedev:ip) -- "bash -l -c '$@'"
 }
 
 ncd() {
@@ -75,6 +81,7 @@ ncd() {
 }
 
 ensure_command aws
+ensure_command fzf
 ensure_command jq
 ensure_command rq
 
