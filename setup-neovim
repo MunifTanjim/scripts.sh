@@ -1,48 +1,55 @@
 #!/usr/bin/env bash
 
-cd /tmp || exit
+set -euo pipefail
 
-echo "Installing NeoVim..."
-_neovim_version=${1:-"nightly"}
-_neovim_url="https://github.com/neovim/neovim/releases/download/${_neovim_version}/nvim.appimage"
-_neovim_dir="/opt/neovim"
+setup_neovim_darwin() {
+  echo "Installing LuaJIT..."
+  brew reinstall luajit
 
-echo "Downloading AppImage..."
-wget --continue --quiet --show-progress --timestamping "${_neovim_url}" -O nvim.appimage
-chmod u+x nvim.appimage
+  echo "Installing NeoVim..."
+  brew reinstall neovim
+}
 
-echo "Installation Directory: ${_neovim_dir}"
-sudo mkdir -p ${_neovim_dir}
-if [[ -f "${_neovim_dir}/nvim.appimage" ]]; then
-  sudo mv ${_neovim_dir}/nvim.appimage ${_neovim_dir}/nvim.appimage.old
-fi
-sudo mv nvim.appimage ${_neovim_dir}/nvim.appimage
+setup_neovim_linux() {
+  cd /tmp
 
-echo "Setting up NeoVim binary: nvim / vim"
-sudo ln -nsf ${_neovim_dir}/nvim.appimage /usr/local/bin/nvim
-ln -nsf /usr/local/bin/nvim "${HOME}/.local/bin/vim"
+  echo "Installing NeoVim..."
+  _neovim_version=${1:-"nightly"}
+  _neovim_url="https://github.com/neovim/neovim/releases/download/${_neovim_version}/nvim.appimage"
+  _neovim_dir="/opt/neovim"
 
-if type volta >/dev/null 2>&1; then
-  echo "Installing Node.js provider: neovim"
-  volta install neovim
-elif type npm >/dev/null 2>&1; then
-  echo "Installing Node.js provider: neovim"
-  npm install -g neovim
-fi
+  echo "Downloading AppImage..."
+  wget --continue --quiet --show-progress --timestamping "${_neovim_url}" -O nvim.appimage
+  chmod u+x nvim.appimage
 
-if type pip2 >/dev/null 2>&1; then
-  echo "Installing Python 2 provider: pynvim"
-  pip2 install --upgrade pynvim
-fi
+  echo "Installation Directory: ${_neovim_dir}"
+  sudo mkdir -p ${_neovim_dir}
+  if [[ -f "${_neovim_dir}/nvim.appimage" ]]; then
+    sudo mv ${_neovim_dir}/nvim.appimage ${_neovim_dir}/nvim.appimage.old
+  fi
+  sudo mv nvim.appimage ${_neovim_dir}/nvim.appimage
 
-if type pip3 >/dev/null 2>&1; then
-  echo "Installing Python 3 provider: pynvim"
-  pip3 install --upgrade pynvim
-fi
+  echo "Setting up NeoVim binary: nvim"
+  sudo ln -nsf ${_neovim_dir}/nvim.appimage /usr/local/bin/nvim
+}
 
-if type gem >/dev/null 2>&1; then
-  echo "Installing Ruby provider: neovim"
-  gem install neovim
+setup_neovim() {
+  if [[ $OSTYPE = darwin* ]]; then
+    setup_neovim_darwin
+  fi
+
+  if [[ $OSTYPE = linux* ]]; then
+    setup_neovim_linux
+  fi
+
+  echo "Creating binary link: vim -> nvim"
+  ln -nsf  "$(which nvim)" "${HOME}/.local/bin/vim"
+}
+
+setup_neovim
+
+if type setup-neovim-providers >/dev/null 2>&1; then
+  setup-neovim-providers
 fi
 
 echo "Done!"
