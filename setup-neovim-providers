@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+if type npm >/dev/null 2>&1; then
+  echo "==="
+  echo "= Installing Node.js provider: neovim"
+  echo "==="
+  npm install -g neovim
+  echo ""
+fi
+
+if type pip2 >/dev/null 2>&1; then
+  echo "==="
+  echo "= Installing Python 2 provider: pynvim"
+  echo "==="
+  pip2 install --upgrade pynvim
+  echo ""
+fi
+
+if type pip3 >/dev/null 2>&1; then
+  echo "==="
+  echo "= Installing Python 3 provider: pynvim"
+  echo "==="
+  pip3 install --upgrade pynvim
+  echo ""
+fi
+
+if type gem >/dev/null 2>&1; then
+  echo "==="
+  echo "= Installing Ruby provider: neovim"
+  echo "==="
+  gem install neovim
+  echo ""
+fi
