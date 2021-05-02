@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+declare url_pattern=""
+
+ensure_tool() {
+  local -r tool="${1}"
+  if ! type "${tool}" >/dev/null 2>&1; then
+    echo "missing required tool: ${tool}"
+  fi
+}
+
+setup_for_darwin() {
+  ensure_tool brew
+  brew install gh
+}
+
+setup_for_debian() {
+  ensure_tool curl
+  ensure_tool dpkg
+  ensure_tool jq
+  ensure_tool wget
+
+  local -r repo="cli/cli"
+  local -r url_pattern="linux_amd64.deb"
+  local -r url=$(curl -s "https://api.github.com/repos/${repo}/releases/latest" | jq -r --arg pattern "${url_pattern}" '.assets | map(.browser_download_url) | map(select(. | test($pattern)))[0]')
+  local -r filename=$(basename "${url}")
+
+  cd /tmp
+
+  wget --continue --quiet --show-progress --timestamping "${url}" -O "${filename}"
+
+  sudo dpkg --install "${filename}"
+}
+
+setup_gh() {
+  case $OSTYPE in
+    darwin*)
+      setup_for_darwin;;
+    linux*)
+      setup_for_debian;;
+    *)
+      echo "Unknown OS!"
+      exit 1;;
+  esac
+}
+
+setup_gh
