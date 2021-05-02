@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+set -eu
+
+declare -r prefix_path="${HOME}/.local"
+
+declare -r temp_dir="$(mktemp --directory /tmp/exa--XXXXXXXXX)"
+
+move() {
+  local -r src="$1"
+  local -r dest="$2"
+  local -r dest_dir="$(dirname "$dest")"
+  if [ ! -d "${dest_dir}" ]; then
+    mkdir -p "${dest_dir}"
+  fi
+  mv "${src}" "${dest}"
+}
+
+cd "${temp_dir}"
+
+echo "Downloading archive..."
+gh release download --repo ogham/exa --pattern "*linux-x86_64-v*.zip"
+
+echo "Extracting archive..."
+unzip -o -q "${temp_dir}/*.zip"
+
+echo "Setting up: exa"
+move ./bin/exa "${prefix_path}/bin/exa"
+move ./man/exa.1 "${prefix_path}/man/man1/exa.1"
+move ./man/exa_colors.5 "${prefix_path}/man/man5/exa_colors.5"
+move ./completions/exa.bash "${prefix_path}/share/bash-completion/exa"
+move ./completions/exa.zsh "${prefix_path}/share/zsh/completions/_exa"
+
+echo "Cleaning up..."
+rm -rf "${temp_dir}"
+
+echo "Done!"
