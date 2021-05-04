@@ -14,5 +14,4 @@ echo "Installing Keybase package..."
 sudo dpkg -i keybase_amd64.deb
 echo "Resolving dependencies..."
 sudo apt-get install -f
-echo "Done! Running Keybase..."
-run_keybase
+echo "Done!"
