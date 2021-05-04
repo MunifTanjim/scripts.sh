@@ -18,7 +18,7 @@ fi
 sudo mv Postman ${_postman_dir}
 
 echo "Setting up Postman binary: postman"
-sudo ln -nsf ${_postman_dir}/Postman /usr/bin/postman
+sudo ln -nsf ${_postman_dir}/Postman /usr/local/bin/postman
 
 echo "Adding Application Shortcut..."
 cat > ${HOME}/.local/share/applications/postman.desktop <<EOL
