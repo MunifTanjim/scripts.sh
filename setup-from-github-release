@@ -67,7 +67,7 @@ pick_file() {
   local -r directory="${1}"
   local -n return_variable="${2}"
 
-  local -r files=("$(find "${directory}" -type f)")
+  local -r files=($(find "${directory}" -type f))
 
   echo "Pick the executable binary:"
   PS3='> '
