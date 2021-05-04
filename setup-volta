@@ -5,11 +5,13 @@ export VOLTA_HOME="${VOLTA_HOME:-"${HOME}/.local/share/volta"}"
 echo "Installing: volta"
 curl https://get.volta.sh | bash -s -- --skip-setup
 
-echo "Installing Node runtime: node@lts"
-volta install node@lts
+if type volta >/dev/null 2>&1; then
+  echo "Installing Node runtime: node@lts"
+  volta install node@lts
 
-echo "Installing Package manager: yarn"
-volta install yarn
+  echo "Installing Package manager: yarn"
+  volta install yarn
 
-echo "Installing Package: typescript"
-volta install typescript
+  echo "Installing Package: typescript"
+  volta install typescript
+fi
