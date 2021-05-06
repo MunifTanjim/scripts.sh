@@ -35,30 +35,17 @@ ncd_config() {
   config $1
 }
 
-ncd_remotedev_services() {
-  local -r compose_file="$(ncd remotedev:ssh:run 'cat /mnt/ephemeral/workspace/docker-compose.yml')"
-  local -r services="$(echo "${compose_file}" | rq --input-yaml | jq -r '.services | keys | .[]')"
-  echo "$services"
-}
-
-ncd_remotedev_ip() {
-  aws ec2 describe-instances --filters "Name=tag:Name,Values=$(ncd config '.ec2_name')" --output text --query 'Reservations[*].Instances[*].PrivateIpAddress' | cat
-}
-
-ncd_remotedev_mosh() {
-  mosh $(ncd config '.ssh_user')@$(ncd config '.ssh_host')
-}
-
-ncd_remotedev_ssh() {
-  ssh $(ncd config '.ssh_user')@$(ncd config '.ssh_host')
-}
-
-ncd_remotedev_ssh_cdp() {
-  ssh -t $(ncd config '.ssh_user')@$(ncd remotedev:ip) -- "cd /mnt/ephemeral/workspace/${1}; bash -l"
-}
-
-ncd_remotedev_ssh_run() {
-  ssh -t $(ncd config '.ssh_user')@$(ncd remotedev:ip) -- "bash -l -c '$@'"
+ncd_ec2_ip() {
+  local -r ec2_name="${1}"
+  local -r filter="Name=tag:Name,Values=*${ec2_name}*"
+  local -r query='Reservations[*].Instances[*].{Id:InstanceId,Ip:PrivateIpAddress,Name:Tags[?Key==`Name`]|[0].Value}'
+  local -r items="$(aws ec2 describe-instances --filters "${filter}" --output json --query "${query}" | jq 'flatten')"
+  local -r selected_name=$(echo "${items}" | jq -r 'map(.Name) | .[]' | fzf --header "Select EC2 Name")
+  local -r selected_ip=$(echo "${items}" | jq -r --arg name "${selected_name}" 'map(select(.Name == $name))[0].Ip' )
+  if [[ "${selected_ip}" = "null" ]]; then
+    exit 1
+  fi
+  echo "${selected_ip}"
 }
 
 ncd() {
