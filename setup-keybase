@@ -13,5 +13,5 @@ curl --progress-bar -O https://prerelease.keybase.io/keybase_amd64.deb
 echo "Installing Keybase package..."
 sudo dpkg -i keybase_amd64.deb
 echo "Resolving dependencies..."
-sudo apt-get install -f
+sudo apt-get install --fix-broken --yes
 echo "Done!"
