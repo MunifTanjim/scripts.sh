@@ -7,8 +7,13 @@ export NVM_DIR="${NVM_DIR:-"${HOME}/.local/share/nvm"}"
 
 if [[ -d "${NVM_DIR}" ]]; then
   echo "nvm is already installed!"
-  echo "Updating nvm..."
+
   cd "${NVM_DIR}"
+  if ! [[ -d .git ]]; then
+    exit 0
+  fi
+
+  echo "Updating nvm..."
   git fetch origin
 else
   echo "Installing nvm..."
