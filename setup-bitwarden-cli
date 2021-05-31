@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -eu
+
+declare -r prefix_path="${HOME}/.local"
+
+declare -r temp_dir="$(mktemp --directory /tmp/bitwarden-cli--XXXXXXXXX)"
+
+declare platform=""
+if [[ $OSTYPE = darwin* ]]; then
+  platform="macos"
+elif [[ $OSTYPE = linux* ]]; then
+  platform="linux"
+fi
+
+move() {
+  local -r src="$1"
+  local -r dest="$2"
+  local -r dest_dir="$(dirname "$dest")"
+  if [ ! -d "${dest_dir}" ]; then
+    mkdir -p "${dest_dir}"
+  fi
+  mv "${src}" "${dest}"
+}
+
+cd "${temp_dir}"
+
+echo "Downloading archive..."
+wget -q --show-progress "https://vault.bitwarden.com/download/?app=cli&platform=${platform}" -O bw.zip
+
+echo "Extracting archive..."
+unzip -o -q bw.zip -d .
+
+echo "Setting up: bw"
+chmod u+x ./bw
+move ./bw "${prefix_path}/bin/bw"
+sudo ln -nsf ${prefix_path}/bin/bw "/usr/local/bin/bw"
+
+echo "Cleaning up..."
+rm -rf "${temp_dir}"
+
+echo "Done!"
