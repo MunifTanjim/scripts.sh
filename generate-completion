@@ -17,7 +17,7 @@ completion_generator_command_template[delta]="curl -fsSL https://raw.githubuserc
 completion_generator_command_template[deno]="{bin} completions {shell}"
 completion_generator_command_template[docker-compose]="curl -fsSL https://raw.githubusercontent.com/docker/compose/master/contrib/completion/{shell}/{filename}"
 completion_generator_command_template[docker]="curl -fsSL https://raw.githubusercontent.com/docker/cli/master/contrib/completion/{shell}/{filename}"
-completion_generator_command_template[exa]="curl -fsSL https://raw.githubusercontent.com/ogham/exa/master/completions/completions.{shell}"
+completion_generator_command_template[exa]="curl -fsSL https://raw.githubusercontent.com/ogham/exa/master/completions/{shell}/{filename}"
 completion_generator_command_template[gh]="{bin} completion --shell {shell}"
 completion_generator_command_template[lf]="curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/master/etc/{bin}.{shell}"
 completion_generator_command_template[netlify]="{bin} completion:generate --shell {shell}"
@@ -147,6 +147,9 @@ for bin in ${tools[@]}; do
   echo
 
   declare filename="${bin}"
+  if [[ ${shell} = "fish" ]]; then
+    filename="${filename}.fish"
+  fi
   if [[ ${shell} = "zsh" ]]; then
     filename="_${filename}"
   fi
