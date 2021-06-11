@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+declare -r my_ip="$(dig +short myip.opendns.com @resolver1.opendns.com)"
+# declare -r my_ip="$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | tr -d '"')"
+# declare -r my_ip="$(curl checkip.amazonaws.com)"
+# declare -r my_ip="$(curl icanhazip.com)"
+# declare -r my_ip="$(curl ifconfig.co)"
+# declare -r my_ip="$(curl ifconfig.me)"
+# declare -r my_ip="$(curl ipecho.net/plain)"
+
+echo "${my_ip}"
