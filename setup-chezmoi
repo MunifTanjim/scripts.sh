@@ -5,7 +5,7 @@ if type chezmoi >/dev/null 2>&1; then
   chezmoi upgrade
 else
   echo "Installing chezmoi..."
-  curl -sfL https://git.io/chezmoi | sh -s -- -b "${HOME}/.local/bin"
+  curl -fsSL https://git.io/chezmoi | sh -s -- -b "${HOME}/.local/bin"
 fi
 
 if ! test -L "/usr/local/bin/chezmoi"; then
