@@ -2,7 +2,42 @@
 
 set -euo pipefail
 
-setup_neovim_darwin() {
+get_latest_reposiotry() {
+  local repo_uri="${1}"
+  local repo_dir="${2}"
+
+  echo "Repository URI: ${repo_uri}"
+  if [[ ! -d "${repo_dir}" ]]; then
+    echo "Cloning repository..."
+    mkdir -p "$(dirname "${repo_dir}")"
+    git clone --quiet --recursive --depth 10 "${repo_uri}" "${repo_dir}"
+    pushd "${repo_dir}" >/dev/null
+  else
+    echo "Pulling latest commits..."
+    pushd "${repo_dir}" >/dev/null
+    git pull
+    git submodule update --init
+  fi
+
+  popd >/dev/null
+}
+
+setup_apt_packages() {
+  local apt_bin="apt"
+  if type apt-fast >/dev/null 2>&1; then
+    apt_bin="apt-fast"
+  fi
+  echo "Installing packages: $*"
+  sudo $apt_bin install -qq --yes "$@"
+}
+
+link_binary() {
+  local binary_name="${1}"
+  echo "Setting up binary: ${binary_name}"
+  sudo ln -nsf "${HOME}/.local/bin/${binary_name}" "/usr/local/bin/${binary_name}"
+}
+
+setup_neovim_brew() {
   echo "Installing LuaJIT..."
   brew reinstall luajit
 
@@ -10,13 +45,13 @@ setup_neovim_darwin() {
   brew reinstall neovim
 }
 
-setup_neovim_linux() {
+setup_neovim_appimage() {
   cd /tmp
 
   echo "Installing NeoVim..."
-  _neovim_version=${1:-"nightly"}
-  _neovim_url="https://github.com/neovim/neovim/releases/download/${_neovim_version}/nvim.appimage"
-  _neovim_dir="/opt/neovim"
+  local -r _neovim_version=${1:-"nightly"}
+  local -r _neovim_url="https://github.com/neovim/neovim/releases/download/${_neovim_version}/nvim.appimage"
+  local -r _neovim_dir="/opt/neovim"
 
   echo "Downloading AppImage..."
   wget --continue --quiet --show-progress --timestamping "${_neovim_url}" -O nvim.appimage
@@ -33,17 +68,33 @@ setup_neovim_linux() {
   sudo ln -nsf ${_neovim_dir}/nvim.appimage /usr/local/bin/nvim
 }
 
+setup_neovim_source() {
+  get_latest_reposiotry "https://github.com/neovim/neovim" "${HOME}/Dev/github/neovim/neovim"
+  pushd "${HOME}/Dev/github/neovim/neovim" >/dev/null
+
+  echo "Installing dependencies..."
+  setup_apt_packages ninja-build gettext libtool libtool-bin autoconf automake cmake g++ pkg-config unzip curl
+
+  echo "Running build..."
+  make CMAKE_BUILD_TYPE=Release CMAKE_INSTALL_PREFIX=$HOME/.local
+
+  echo "Installing..."
+  make install
+
+  link_binary "nvim"
+}
+
 setup_neovim() {
   if [[ $OSTYPE = darwin* ]]; then
-    setup_neovim_darwin
+    setup_neovim_brew
   fi
 
   if [[ $OSTYPE = linux* ]]; then
-    setup_neovim_linux
+    setup_neovim_source
   fi
 
   echo "Creating binary link: vim -> nvim"
-  ln -nsf  "$(which nvim)" "${HOME}/.local/bin/vim"
+  ln -nsf "$(which nvim)" "${HOME}/.local/bin/vim"
 }
 
 setup_neovim
