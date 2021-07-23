@@ -2,11 +2,15 @@
 
 set -euo pipefail
 
+declare -r NERD_FONTS_DIR="${HOME}/.fonts/nerd-fonts"
+
+mkdir -p "${NERD_FONTS_DIR}"
+
 declare -A NERD_FONTS=()
 
 declare font=""
 
-_get-font-list() {
+_get_font_list() {
   local api_url="https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest"
   local urls
 
@@ -21,7 +25,7 @@ _get-font-list() {
   done
 }
 
-_select-font() {
+_select_font() {
   PS3='Select Font: '
   select _font in "${!NERD_FONTS[@]}"; do
     if [[ -n "${_font}" ]]; then
@@ -33,28 +37,65 @@ _select-font() {
   done
 }
 
-_download-font() {
+_download_font() {
+  cd "${NERD_FONTS_DIR}"
+
   echo "Downloading font: ${font}"
   local -r url="${NERD_FONTS[${font}]}"
   wget --quiet --show-progress "${url}" -O "./${font}.zip"
-  
+
   echo "Extracting archive..."
   unzip -o -q "./${font}.zip" -d "${font}"
 }
 
-_update-font-cache() {
+_checkout_font() {
+  local -r temp_dir="$(mktemp --directory /tmp/nerd-fonts--XXXXXXXXX)"
+
+  echo "Checking-out font: ${font}"
+  git clone --filter=blob:none --sparse https://github.com/ryanoasis/nerd-fonts.git "${temp_dir}"
+  pushd "${temp_dir}" >/dev/null
+  git sparse-checkout add "patched-fonts/${font}"
+  popd >/dev/null
+
+  echo "Copying files..."
+  mkdir -p "${NERD_FONTS_DIR}/${font}"
+  find "${temp_dir}/patched-fonts/${font}" -type f -iname "*.ttf" -exec cp {} "${NERD_FONTS_DIR}/${font}/" \;
+  rm -rf "${temp_dir}"
+}
+
+_update_font_cache() {
   echo "Updating font cache..."
   sudo fc-cache -f
 }
 
-declare NERD_FONTS_DIR="${HOME}/.fonts/nerd-fonts"
+_git_supports_sparse_checkout() {
+  local version="$(git --version)"
+  version="${version##git version }"
+  local major="${version%%.*}"
+  local minor="${version/${major}./}"
+  minor="${minor%%.*}"
+  local patch="${version/${major}.${minor}./}"
 
-mkdir -p "${NERD_FONTS_DIR}"
-cd "${NERD_FONTS_DIR}"
+  if [[ $major -lt 2 ]]; then
+    return 1
+  fi
 
-_get-font-list
-_select-font
-_download-font
-_update-font-cache
+  if [[ $minor -lt 26 ]]; then
+    return 1
+  fi
+
+  return 0
+}
+
+_get_font_list
+_select_font
+
+if _git_supports_sparse_checkout; then
+  _checkout_font
+else
+  _download_font
+fi
+
+_update_font_cache
 
 echo "Done!"
