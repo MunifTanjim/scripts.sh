@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+set -eu
+
+get_latest_reposiotry() {
+  local repo_uri="${1}"
+  local repo_dir="${2}"
+
+  echo "Repository URI: ${repo_uri}"
+  if [[ ! -d "${repo_dir}" ]]; then
+    echo "Cloning repository..."
+    mkdir -p "$(dirname "${repo_dir}")"
+    git clone --quiet --recursive "${repo_uri}" "${repo_dir}"
+    pushd "${repo_dir}" >/dev/null
+  else
+    echo "Pulling latest commits..."
+    pushd "${repo_dir}" >/dev/null
+    git pull
+    git submodule update --init
+  fi
+
+  popd >/dev/null
+}
+
+declare -r owner="tmux"
+declare -r repo="tmux"
+
+get_latest_reposiotry "https://github.com/${owner}/${repo}" "${HOME}/Dev/github/${owner}/${repo}"
+pushd "${HOME}/Dev/github/${owner}/${repo}" >/dev/null
+
+echo "Installing dependencies..."
+sudo apt install libevent-dev ncurses-dev build-essential bison pkg-config
+
+echo "Running build..."
+sh autogen.sh
+./configure --prefix=${HOME}/.local
+make
+make install
+
+echo "Setting up binary: tmux"
+sudo ln -nsf ${HOME}/.local/bin/tmux /usr/local/bin/tmux
+
+echo "Done!"
