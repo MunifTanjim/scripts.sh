@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 
-declare url_pattern=""
+set -euo pipefail
 
 ensure_tool() {
   local -r tool="${1}"
   if ! type "${tool}" >/dev/null 2>&1; then
     echo "missing required tool: ${tool}"
+    exit 1
   fi
 }
 
 setup_for_darwin() {
   ensure_tool brew
+
   brew install gh
 }
 
