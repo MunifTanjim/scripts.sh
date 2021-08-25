@@ -104,7 +104,16 @@ setup_neovim_source() {
   link_binary "nvim"
 }
 
-setup_neovim_source
+if [[ $# -gt 0 ]]; then
+  case "${1}" in
+    --appimage) setup_neovim_appimage;;
+    --brew) setup_neovim_brew;;
+    --source) setup_neovim_source;;
+    *) exit 1;;
+  esac
+else
+  setup_neovim_source
+fi
 
 echo "Creating binary link: vim -> nvim"
 ln -nsf "$(which nvim)" "${HOME}/.local/bin/vim"
