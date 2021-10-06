@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+command_exists() {
+  type "${1}" >/dev/null 2>&1
+}
+
+ensure_command() {
+  if ! command_exists "${1}"; then
+    echo "command not found: ${1}"
+    exit 1
+  fi
+}
+
+aws_whoami() {
+  local -r identity_blob="$(aws sts get-caller-identity --output=json)"
+  local -r account_aliases_blob="$(aws iam list-account-aliases --max-items=1)"
+
+  local -r account_alias="$(echo "${account_aliases_blob}" | jq -r '.AccountAliases[0]')"
+  local -r account_id="$(echo "${identity_blob}" | jq -r '.Account')"
+  local -r user_id="$(echo "${identity_blob}" | jq -r '.UserId')"
+  local -r arn="$(echo "${identity_blob}" | jq -r '.Arn')"
+
+  echo "Account Alias : ${account_alias}"
+  echo "   Account ID : ${account_id}"
+  echo "      User ID : ${user_id}"
+  echo "          ARN : ${arn}"
+}
+
+ensure_command aws
+ensure_command jq
+
+aws_whoami $@
