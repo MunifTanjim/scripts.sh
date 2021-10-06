@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+command_exists() {
+  type "${1}" >/dev/null 2>&1
+}
+
+ensure_command() {
+  if ! command_exists "${1}"; then
+    echo "command not found: ${1}"
+    exit 1
+  fi
+}
+
+aws_ec2_ip() {
+  local -r ec2_name="${1}"
+  local -r filter="Name=tag:Name,Values=*${ec2_name}*"
+  local -r query='Reservations[*].Instances[*].{Id:InstanceId,Ip:PrivateIpAddress,Name:Tags[?Key==`Name`]|[0].Value}'
+  local -r items="$(aws ec2 describe-instances --filters "${filter}" --output json --query "${query}" | jq 'flatten')"
+  local -r selected_name=$(echo "${items}" | jq -r 'map(.Name) | .[]' | fzf --header "Select EC2 Name")
+  local -r selected_ip=$(echo "${items}" | jq -r --arg name "${selected_name}" 'map(select(.Name == $name))[0].Ip' )
+  if [[ "${selected_ip}" = "null" ]]; then
+    exit 1
+  fi
+  echo "${selected_ip}"
+}
+
+ensure_command aws
+ensure_command fzf
+ensure_command jq
+
+aws_ec2_ip $@
