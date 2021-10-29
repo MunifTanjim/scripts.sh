@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+set -eu
+
+declare -r red='\e[31m'
+declare -r yellow='\e[33m'
+declare -r blue='\e[34m'
+declare -r magenta='\e[35m'
+declare -r cyan='\e[36m'
+declare -r normal='\e[39m'
+
+echo -e "${magenta}=========================================="
+echo -e "${magenta}=  ${blue}Copy Neovim Config to Remote Machine${magenta}  ="
+echo -e "${magenta}=========================================="
+echo -e "${normal}"
+
+declare -a args=($@)
+
+if $(test ${#args[@]} -lt 1); then
+  echo -e "${red}[error]${normal} missing arg: TARGET"
+  echo -e "${normal}"
+  exit 1
+fi
+
+declare -r target="${args[${#args[@]}-1]%%:*}"
+
+unset args[${#args[@]}-1]
+
+set -- "${args[@]}"
+
+echo -e "${blue}TARGET: ${cyan}${target}"
+echo -e "${normal}"
+
+echo -e "${blue}Copying ${cyan}~/.config/nvim/${normal}"
+echo -e "${normal}"
+ssh $@ ${target} 'mkdir -p ~/.config/nvim'
+scp $@ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/nvim" "${target}:~/.config/"
+echo -e "${normal}"
+
+echo -e "${magenta}Done!${normal}"
