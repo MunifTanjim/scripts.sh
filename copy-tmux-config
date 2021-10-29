@@ -38,7 +38,8 @@ echo -e "${normal}"
 
 echo -e "${blue}Copying ${cyan}~/.config/tmux/${normal}"
 echo -e "${normal}"
-scp $@ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/tmux" "${target}:~/.config/tmux"
+ssh $@ ${target} 'mkdir -p ~/.config/tmux'
+scp $@ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/tmux" "${target}:~/.config/"
 echo -e "${normal}"
 
 echo -e "${magenta}Done!${normal}"
