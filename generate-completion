@@ -19,6 +19,7 @@ completion_generator_command_template[docker-compose]="curl -fsSL https://raw.gi
 completion_generator_command_template[docker]="curl -fsSL https://raw.githubusercontent.com/docker/cli/master/contrib/completion/{shell}/{filename}"
 completion_generator_command_template[exa]="curl -fsSL https://raw.githubusercontent.com/ogham/exa/master/completions/{shell}/{filename}"
 completion_generator_command_template[gh]="{bin} completion --shell {shell}"
+completion_generator_command_template[gopass]="{bin} completion {shell}"
 completion_generator_command_template[lf]="curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/master/etc/{bin}.{shell}"
 completion_generator_command_template[netlify]="{bin} completion:generate --shell {shell}"
 completion_generator_command_template[nvm:bash]="curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/{shell}_completion"
