@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+command_exists() {
+  type "${1}" >/dev/null 2>&1
+}
+
+ensure_tool() {
+  local -r tool="${1}"
+  if ! type "${tool}" >/dev/null 2>&1; then
+    echo "missing required tool: ${tool}"
+  fi
+}
+
+setup_for_darwin() {
+  ensure_tool brew
+
+  brew install gopass
+}
+
+setup_for_debian() {
+  ensure_tool curl
+  ensure_tool dpkg
+  ensure_tool jq
+  ensure_tool wget
+
+  local -r repo="gopasspw/gopass"
+  local -r url_pattern="linux_amd64.deb"
+  local -r url=$(curl -s "https://api.github.com/repos/${repo}/releases/latest" | jq -r --arg pattern "${url_pattern}" '.assets | map(.browser_download_url) | map(select(. | test($pattern)))[0]')
+  local -r filename=$(basename "${url}")
+
+  echo "Downloading..."
+  curl --progress-bar --continue-at - --output "/tmp/${filename}" -L "${url}"
+  echo
+
+  echo "Installing..."
+  sudo dpkg --install "/tmp/${filename}"
+  echo
+
+  echo "Done!"
+}
+
+case $OSTYPE in
+  darwin*)
+    setup_for_darwin;;
+  linux*)
+    if command_exists dpkg; then
+      setup_for_debian
+    fi
+    ;;
+  *)
+    echo "Unknown OS!"
+    exit 1;;
+esac
