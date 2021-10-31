@@ -8,8 +8,9 @@ command_exists() {
 
 ensure_tool() {
   local -r tool="${1}"
-  if ! type "${tool}" >/dev/null 2>&1; then
+  if ! command_exists "${tool}"; then
     echo "missing required tool: ${tool}"
+    exit 1
   fi
 }
 
