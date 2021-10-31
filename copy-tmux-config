@@ -31,15 +31,21 @@ set -- "${args[@]}"
 echo -e "${blue}TARGET: ${cyan}${target}"
 echo -e "${normal}"
 
-echo -e "${blue}Copying ${cyan}~/.tmux.conf${normal}"
-echo -e "${normal}"
-scp $@ "${HOME}/.tmux.conf" "${target}:~/"
-echo -e "${normal}"
+declare -r config_file="${HOME}/.tmux.conf"
+if [[ -f "${config_file}" ]]; then
+  echo -e "${blue}Copying ${cyan}~/.tmux.conf${normal}"
+  echo -e "${normal}"
+  scp $@ "${config_file}" "${target}:~/"
+  echo -e "${normal}"
+fi
 
-echo -e "${blue}Copying ${cyan}~/.config/tmux/${normal}"
-echo -e "${normal}"
-ssh $@ ${target} 'mkdir -p ~/.config/tmux'
-scp $@ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/tmux" "${target}:~/.config/"
-echo -e "${normal}"
+declare -r config_directory="${XDG_CONFIG_HOME:-${HOME}/.config}/tmux"
+if [[ -d "${config_directory}" ]]; then
+  echo -e "${blue}Copying ${cyan}~/.config/tmux/${normal}"
+  echo -e "${normal}"
+  ssh $@ ${target} 'mkdir -p ~/.config/tmux'
+  scp $@ -r "${config_directory}" "${target}:~/.config/"
+  echo -e "${normal}"
+fi
 
 echo -e "${magenta}Done!${normal}"
