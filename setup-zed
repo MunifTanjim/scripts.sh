@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+export ZDOTDIR="${ZDOTDIR:-${HOME}/.config/zsh}"
+export ZED_HOME="${ZED_HOME:-"${HOME}/.local/share/zsh/.zed"}"
+
+if [ -d "${ZED_HOME}/self" ]; then
+  git -C "${ZED_HOME}/self" pull
+else
+  git -C "${ZED_HOME}" clone https://github.com/MunifTanjim/zed.git self
+fi
