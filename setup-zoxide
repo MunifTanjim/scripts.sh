@@ -22,7 +22,7 @@ echo "Downloading archive..."
 gh release download --repo ajeetdsouza/zoxide --pattern "*-x86_64-*linux-musl.tar.gz"
 
 echo "Extracting archive..."
-tar -xzf ${temp_dir}/*.tar.gz --strip-components=1
+tar -xzf ${temp_dir}/*.tar.gz
 
 echo "Setting up: zoxide"
 move ./zoxide "${prefix_path}/bin/zoxide"
