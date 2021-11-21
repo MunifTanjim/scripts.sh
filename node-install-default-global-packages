@@ -1,0 +1,30 @@
+#!/usr/bin/env sh
+
+set -eu
+
+list_file="${XDG_CONFIG_HOME:-"${HOME}/.config"}/personal/node_default_global_packages"
+
+if ! test -f "${list_file}"; then
+  echo "missing config file: ${list_file}" >&2
+  exit 2
+fi
+
+if ! type node >/dev/null 2>&1; then
+  echo "missing command: node" >&2
+  exit 1
+fi
+
+if ! type npm >/dev/null 2>&1; then
+  echo "missing command: npm" >&2
+  exit 1
+fi
+
+echo "node version : $(node --version)"
+echo "npm version  : $(npm --version)"
+echo
+echo "default global packages:"
+echo
+printf -- "- %s\n" $(cat "${list_file}")
+echo
+
+npm install --global $(cat "${list_file}" | xargs)
