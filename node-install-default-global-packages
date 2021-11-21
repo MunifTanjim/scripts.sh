@@ -2,7 +2,7 @@
 
 set -eu
 
-list_file="${XDG_CONFIG_HOME:-"${HOME}/.config"}/personal/node_default_global_packages"
+list_file="${XDG_CONFIG_HOME:-"${HOME}/.config"}/personal/default_node_global_packages"
 
 if ! test -f "${list_file}"; then
   echo "missing config file: ${list_file}" >&2
