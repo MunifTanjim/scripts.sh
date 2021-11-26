@@ -123,7 +123,7 @@ if [[ ${#tools[@]} -eq 0 ]]; then
   exit 1
 fi
 
-if [[ ${shell} = "fish" ]]; then
+if [[ ${shell} = "fish" ]] && [[ "${interactive}" = "yes" ]]; then
   echo "[warn] ${shell} support is experimental!"
   read -rp "do you want to continue? (yN): " proceed
   if [[ ${proceed} != "y" ]]; then
