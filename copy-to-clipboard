@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+case "${OSTYPE}" in
+  linux*)
+    if type "xclip" >/dev/null 2>&1; then
+      exec xclip -in -selection clipboard
+    elif type "xsel" >/dev/null 2>&1; then
+      exec xsel --input --clipboard
+    else
+      echo >&2 "no tools available"
+      exit 1
+    fi
+    ;;
+  *)
+    echo >&2 "unsupported os: ${OSTYPE}"
+    exit 1
+    ;;
+esac
