@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+commit="$(git log -n 50 --pretty=format:'%h %s' --no-merges | fzf | cut -c -7)"
+
+if test -z "${commit}"; then
+  echo "fixup aborted!"
+  exit 1
+fi
+
+exec git commit --fixup="${commit}"
