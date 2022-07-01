@@ -96,7 +96,8 @@ setup_neovim_source() {
   fi
 
   echo "Running build..."
-  make CMAKE_BUILD_TYPE=Release CMAKE_INSTALL_PREFIX=${HOME}/.local cmake
+  make distclean
+  make CMAKE_BUILD_TYPE=Release CMAKE_INSTALL_PREFIX="${HOME}/.local" cmake
 
   echo "Installing..."
   make install
@@ -106,7 +107,9 @@ setup_neovim_source() {
 
 if [[ $# -gt 0 ]]; then
   case "${1}" in
-    --appimage) setup_neovim_appimage;;
+    --appimage)
+      setup_neovim_appimage "${2:-nightly}"
+      ;;
     --brew) setup_neovim_brew;;
     --source) setup_neovim_source;;
     *) exit 1;;
@@ -116,7 +119,7 @@ else
 fi
 
 echo "Creating binary link: vim -> nvim"
-ln -nsf "$(which nvim)" "${HOME}/.local/bin/vim"
+ln -nsf "$(command -v nvim)" "${HOME}/.local/bin/vim"
 
 if type setup-neovim-providers >/dev/null 2>&1; then
   setup-neovim-providers
