@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 function get_latest_reposiotry() {
   local repo_uri="${1}"
@@ -46,22 +46,48 @@ function link_binary() {
 }
 
 function setup_rofi() {
+  local branch="${1}"
+
   get_latest_reposiotry "https://github.com/davatorium/rofi" "${HOME}/Dev/github/davatorium/rofi"
   pushd "${HOME}/Dev/github/davatorium/rofi" >/dev/null
 
+  if [[ "$(git branch --show-current)" != "${branch}" ]]; then
+    echo ""
+    echo "Run the following command to checkout '${branch}' branch:"
+    echo "  git -C ${HOME}/Dev/github/davatorium/rofi checkout ${branch}"
+    echo ""
+    echo "And run the script again:"
+    echo "  setup-rofi ${branch}"
+    exit 1
+  fi
+
   echo "Installing dependencies..."
-  setup_python_package meson
+  if [[ "${branch}" = "master" ]]; then
+    setup_python_package meson
+  fi
   setup_apt_packages build-essential cppcheck flex libbison-dev libgif-dev libjpeg-dev libnl-3-dev libpango1.0-dev librsvg2-dev libstartup-notification0-dev libxcb-cursor-dev libxcb-ewmh-dev libxcb-icccm4-dev libxcb-randr0-dev libxcb-util-dev libxcb-xinerama0-dev libxcb-xkb-dev libxcb-xrm-dev libxcb1-dev libxkbcommon-x11-dev ninja-build ohcount pkg-config ronn uncrustify
 
   echo "Running build..."
-  meson ./ ./build
-  meson configure --prefix="${HOME}/.local" ./build
-  ninja -C ./build
+  if [[ "${branch}" = "master" ]]; then
+    meson ./ ./build
+    meson configure --prefix="${HOME}/.local" ./build
+    ninja -C ./build
+  else
+    autoreconf --install
+    mkdir -p build
+    cd build
+    ../configure --prefix="${HOME}/.local" --disable-check
+  fi
 
   echo "Installing..."
-  ninja -C ./build install
+  if [[ "${branch}" = "master" ]]; then
+    ninja -C ./build install
+  else
+    make
+    make install
+  fi
 
   link_binary "rofi"
 }
 
-setup_rofi
+setup_rofi "${1:-"next"}"
