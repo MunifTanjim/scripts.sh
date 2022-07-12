@@ -26,7 +26,7 @@ tar -xzf ${temp_dir}/*.tar.gz
 
 echo "Setting up: zoxide"
 move ./zoxide "${prefix_path}/bin/zoxide"
-for file in ./man/*.1; do
+for file in ./man/**/*.1; do
   move "${file}" "${prefix_path}/man/man1/$(basename "${file}")"
 done
 
