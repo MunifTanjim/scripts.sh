@@ -30,7 +30,7 @@ pushd "${HOME}/Dev/github/${owner}/${repo}" >/dev/null
 
 echo "Installing dependencies..."
 
-sudo apt install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev python3
+sudo apt install -y cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev python3
 
 echo "Building alacritty..."
 
