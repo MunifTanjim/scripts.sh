@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 # install/update pyenv
 # https://github.com/yyuu/pyenv
 
