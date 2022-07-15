@@ -17,4 +17,3 @@ else
   echo
   curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- --no-modify-path -y
 fi
-
