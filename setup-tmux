@@ -29,7 +29,7 @@ get_latest_reposiotry "https://github.com/${owner}/${repo}" "${HOME}/Dev/github/
 pushd "${HOME}/Dev/github/${owner}/${repo}" >/dev/null
 
 echo "Installing dependencies..."
-sudo apt install libevent-dev ncurses-dev build-essential bison pkg-config
+sudo apt install -y libevent-dev ncurses-dev build-essential bison pkg-config
 
 echo "Running build..."
 sh autogen.sh
