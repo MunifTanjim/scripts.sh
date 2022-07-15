@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+command_exists() {
+  type "${1}" >/dev/null 2>&1
+}
+
 ensure_tool() {
   local -r tool="${1}"
   if ! type "${tool}" >/dev/null 2>&1; then
@@ -13,16 +17,11 @@ ensure_tool() {
 setup_for_darwin() {
   ensure_tool brew
 
-  brew install bat
+  echo 'brew "bat"' | brew bundle --no-lock --file=-
 }
 
 setup_for_debian() {
-  ensure_tool dpkg
-  ensure_tool gh
-
-  local -r temp_dir="$(mktemp --directory /tmp/bat--XXXXXXXXX)"
-  gh release download "${latest_tag}" --repo "sharkdp/bat" --pattern "*musl*amd64.deb" --dir "${temp_dir}"
-  sudo dpkg --install ${temp_dir}/bat*amd64.deb
+  setup-from-github-release "sharkdp/bat" "musl.+amd64.deb"
 }
 
 setup_bat() {
@@ -30,7 +29,10 @@ setup_bat() {
     darwin*)
       setup_for_darwin;;
     linux*)
-      setup_for_debian;;
+      if command_exists dpkg; then
+        setup_for_debian
+      fi
+      ;;
     *)
       echo "Unknown OS!"
       exit 1;;
