@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+command_exists() {
+  type "${1}" >/dev/null 2>&1
+}
+
 is_darwin() {
   [[ $OSTYPE = darwin* ]]
 }
@@ -51,11 +55,11 @@ link_binary() {
 }
 
 setup_neovim_brew() {
-  echo "Installing LuaJIT..."
-  brew reinstall luajit
-
-  echo "Installing NeoVim..."
-  brew reinstall neovim
+  local -r brewfile='
+  brew "luajit", args: ["HEAD"]
+  brew "neovim", args: ["HEAD"]
+  '
+  echo "$brewfile" | brew bundle --no-lock --file=-
 }
 
 setup_neovim_appimage() {
@@ -107,21 +111,27 @@ setup_neovim_source() {
 
 if [[ $# -gt 0 ]]; then
   case "${1}" in
-    --appimage)
-      setup_neovim_appimage "${2:-nightly}"
-      ;;
+    --appimage) setup_neovim_appimage "${2:-nightly}";;
     --brew) setup_neovim_brew;;
     --source) setup_neovim_source;;
-    *) exit 1;;
+    *)
+      echo "Unknown flag!"
+      exit 1;;
   esac
 else
-  setup_neovim_source
+  case "${OSTYPE}" in
+    darwin*) setup_neovim_brew;;
+    linux*) setup_neovim_source;;
+    *)
+      echo "Unknown OS!"
+      exit 1;;
+  esac
 fi
 
 echo "Creating binary link: vim -> nvim"
 ln -nsf "$(command -v nvim)" "${HOME}/.local/bin/vim"
 
-if type setup-neovim-providers >/dev/null 2>&1; then
+if command_exists setup-neovim-providers; then
   setup-neovim-providers
 fi
 
