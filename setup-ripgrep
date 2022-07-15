@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+command_exists() {
+  type "${1}" >/dev/null 2>&1
+}
+
+ensure_tool() {
+  local -r tool="${1}"
+  if ! type "${tool}" >/dev/null 2>&1; then
+    echo "missing required tool: ${tool}"
+    exit 1
+  fi
+}
+
+setup_for_darwin() {
+  ensure_tool brew
+
+  echo 'brew "ripgrep"' | brew bundle --no-lock --file=-
+}
+
+setup_for_debian() {
+  setup-from-github-release "BurntSushi/ripgrep" "amd64.deb"
+}
+
+setup_ripgrep() {
+  case $OSTYPE in
+    darwin*)
+      setup_for_darwin;;
+    linux*)
+      if command_exists dpkg; then
+        setup_for_debian
+      fi
+      ;;
+    *)
+      echo "Unknown OS!"
+      exit 1;;
+  esac
+}
+
+setup_ripgrep
