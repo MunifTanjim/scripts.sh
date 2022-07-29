@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+command_exists() {
+  type "${1}" >/dev/null 2>&1
+}
+
+ensure_tool() {
+  local -r tool="${1}"
+  if ! command_exists "${tool}"; then
+    echo "missing required tool: ${tool}"
+    exit 1
+  fi
+}
+
+setup_for_darwin() {
+  ensure_tool brew
+
+  echo 'cask "jetbrains-toolbox"' | brew bundle --no-lock --file=-
+}
+
+setup_for_debian() {
+  ensure_tool curl
+
+  local -r url="$(curl -fsSI "https://download.jetbrains.com/product?code=TBA&latest&distribution=linux" | tr -d '\r' | grep -i "location:" | cut -d' ' -f2)"
+  local -r filename="$(basename "${url}")"
+  local -r archive_path="/tmp/${filename}"
+  local -r binary_path="/tmp/jetbrains-toolbox"
+
+  echo "Downloading..."
+  curl --progress-bar --continue-at - --output "${archive_path}" -L "${url}"
+  echo
+
+  echo "Installing..."
+  tar --strip-components=1 -xvzf "${archive_path}"
+  chmod u+x "${binary_path}"
+  mv "${binary_path}" "${HOME}/.local/bin/"
+  echo
+
+  echo "Done!"
+}
+
+case $OSTYPE in
+  darwin*)
+    setup_for_darwin;;
+  linux*)
+    setup_for_debian
+    ;;
+  *)
+    echo "Unknown OS!"
+    exit 1;;
+esac
