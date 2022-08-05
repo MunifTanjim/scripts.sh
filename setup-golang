@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+declare -r latest_version="$(curl -s "https://go.dev/VERSION?m=text")"
+declare -r archive_filename="${latest_version}.linux-amd64.tar.gz"
+declare -r archive_url="https://golang.org/dl/${archive_filename}"
+
+declare installed_version=""
+if command -v go >/dev/null 2>&1; then
+  installed_version="$(go version | grep -oE "go[0-9.]+")"
+fi
+
+if test "${installed_version}" = "${latest_version}"; then
+  echo "${installed_version} is up to date"
+  exit 0
+fi
+
+declare -r GOLANG_DIR="${GOLANG_DIR:-"${XDG_DATA_HOME:-"${HOME}/.local/share"}/golang"}"
+declare -r GOPATH="${GOPATH:-"${XDG_DATA_HOME:-"${HOME}/.local/share"}/go"}"
+
+echo "Downloading ${archive_filename}..."
+wget --no-check-certificate --continue --quiet --show-progress "${archive_url}" -O "/tmp/${archive_filename}"
+
+mkdir -p "${GOLANG_DIR}/${latest_version}"
+if test -z "${installed_version}"; then
+  echo "Installing ${latest_version}..."
+else
+  echo "Updating ${installed_version} to ${latest_version}..."
+fi
+tar --strip-components=1 -xzf "/tmp/${archive_filename}" -C "${GOLANG_DIR}/${latest_version}" 
+
+ln -nsf "${GOLANG_DIR}/${latest_version}" "${GOLANG_DIR}/current"
+
+echo "Done!"
