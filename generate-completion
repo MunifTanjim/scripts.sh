@@ -11,6 +11,7 @@ declare -A completion_generator_command_template
 completion_generator_command_template[alacritty:bash]="curl -fsSL https://raw.githubusercontent.com/alacritty/alacritty/master/extra/completions/{bin}.{shell}"
 completion_generator_command_template[alacritty]="curl -fsSL https://raw.githubusercontent.com/alacritty/alacritty/master/extra/completions/{filename}"
 completion_generator_command_template[apt-fast]="curl -fsSL https://raw.githubusercontent.com/ilikenwf/apt-fast/master/completions/{shell}/{filename}"
+completion_generator_command_template[bw]="{bin} completion --shell {shell}"
 completion_generator_command_template[cargo]="rustup completions {shell} {bin}"
 completion_generator_command_template[chezmoi]="{bin} completion {shell}"
 completion_generator_command_template[delta]="curl -fsSL https://raw.githubusercontent.com/dandavison/delta/master/etc/completion/completion.{shell}"
