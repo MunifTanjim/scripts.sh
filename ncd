@@ -39,6 +39,23 @@ ncd_ec2_ip() {
   exec aws-ec2-ip $@
 }
 
+ncd_npm() {
+  local -r domain="newscred"
+  local -r domain_owner="304160530156"
+  # local -r repo="newscred-npm-package"
+  # local -r region="us-east-1"
+
+  local -r ttl=$(( 30 * 60 ))
+
+  if ! npm ping >/dev/null 2>&1; then
+    local AWS_CODEARTIFACT_AUTH_TOKEN
+    AWS_CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token --duration-seconds "${ttl}" --domain "${domain}" --domain-owner ${domain_owner} --query authorizationToken --output text)
+    export AWS_CODEARTIFACT_AUTH_TOKEN
+  fi
+
+  npm "$@"
+}
+
 ncd() {
   local -r cmd="${1}"
   shift
