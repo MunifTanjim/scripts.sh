@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+declare -r prefix_path="${HOME}/.local"
+
+declare temp_dir
+temp_dir="$(mktemp --directory /tmp/lf--XXXXXXXXX)"
+
+move() {
+  local -r src="$1"
+  local -r dest="$2"
+  local -r dest_dir="$(dirname "$dest")"
+  if [ ! -d "${dest_dir}" ]; then
+    mkdir -p "${dest_dir}"
+  fi
+  mv "${src}" "${dest}"
+}
+
+cd "${temp_dir}"
+
+echo "Downloading archive..."
+gh release download --archive tar.gz --repo gokcehan/lf
+gh release download --repo gokcehan/lf --pattern "*linux-amd64.tar.gz" -D ./bin
+
+echo "Extracting archive..."
+tar --strip-component=1 -xzf "${temp_dir}"/*.tar.gz
+tar -xzf "${temp_dir}"/bin/*.tar.gz
+
+echo "Setting up: lf"
+move ./lf "${prefix_path}/bin/lf"
+move ./lf.1 "${prefix_path}/man/man1/lf.1"
+move ./etc/lf.bash "${prefix_path}/share/bash-completion/lf"
+move ./etc/lf.zsh "${prefix_path}/share/zsh/completions/_lf"
+
+sudo ln -nsf "${prefix_path}/bin/lf" "/usr/local/bin/lf"
+
+echo "Cleaning up..."
+rm -rf "${temp_dir}"
+
+echo "Done!"
