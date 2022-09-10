@@ -13,6 +13,14 @@ case "${OSTYPE}" in
       exit 1
     fi
     ;;
+  darwin*)
+    if type "pbcopy" >/dev/null 2>&1; then
+      exec pbcopy
+    else
+      echo >&2 "no tools available"
+      exit 1
+    fi
+    ;;
   *)
     echo >&2 "unsupported os: ${OSTYPE}"
     exit 1
