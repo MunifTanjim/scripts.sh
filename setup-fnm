@@ -5,12 +5,15 @@
 
 FNM_DIR="${FNM_DIR:-"${XDG_DATA_HOME:-"${HOME}/.local/share"}/fnm"}"
 
-bin_dir="${HOME}/.local/bin"
-install_dir="${FNM_DIR}/bin"
+declare -r bin_dir="${HOME}/.local/bin"
+declare -r install_dir="${FNM_DIR}/bin"
 
 curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "${install_dir}" --skip-shell
 
-echo "Setting up binary: fnm"
-if test "$(readlink --canonicalize-existing --no-newline ${bin_dir}/fnm)" != "${install_dir}/fnm"; then
-  ln -nsf ${install_dir}/fnm ${bin_dir}/fnm
+if test -x "${install_dir}/fnm"; then
+  # linux (without brew)
+  echo "Setting up binary: fnm"
+  if test "$(readlink --canonicalize-existing --no-newline "${bin_dir}/fnm")" != "${install_dir}/fnm"; then
+    echo ln -nsf "${install_dir}/fnm" "${bin_dir}/fnm"
+  fi
 fi
