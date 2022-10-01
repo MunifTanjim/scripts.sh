@@ -1,0 +1,192 @@
+#!/usr/bin/env zx
+// vim: set filetype=javascript :
+
+import { URL } from "url";
+import { GitLab } from "./zx/gitlab.mjs";
+
+$.verbose = false;
+
+async function getRepoInfo() {
+  let ret;
+
+  ret = await $`git remote`;
+
+  const remote_names = ret.stdout.trim().split("\n");
+
+  const remote = {};
+
+  for (const remote_name of remote_names) {
+    remote[remote_name] = {};
+
+    ret = await $`git remote get-url --all ${remote_name}`;
+    remote[remote_name]["fetch"] = ret.stdout
+      .trim()
+      .split("\n")
+      .map((url) => new URL(url));
+
+    ret = await $`git remote get-url --all --push ${remote_name}`;
+    remote[remote_name]["push"] = ret.stdout
+      .trim()
+      .split("\n")
+      .map((url) => new URL(url));
+
+    remote[remote_name].url = remote[remote_name]["fetch"][0];
+  }
+
+  ret = await $`git branch --show-current`;
+  const current_branch = ret.stdout.trim();
+
+  const project = remote.origin.fetch[0].pathname
+    .replace(/^\//, "")
+    .replace(/\.git$/, "");
+  const [owner, name] = project.split("/");
+
+  return {
+    project,
+    owner,
+    name,
+    remote,
+    current_branch,
+  };
+}
+
+async function refreshRepoInfo(repo) {
+  Object.assign(repo, await getRepoInfo());
+}
+
+async function ensureGitMirrorRemote(repo, name) {
+  if (
+    repo.remote.origin.url.host === "gitlab.com" ||
+    repo.remote["origin-gitlab"]
+  ) {
+    return;
+  }
+
+  await $`git remote add origin-${name} https://gitlab.com/${repo.project}.git`;
+  await refreshRepoInfo(repo);
+}
+
+async function init(repo) {
+  const gitlab = await new GitLab({ name: "create-git-mirror" }).init();
+
+  const getGitlabMirrorProjectSettings = (repo) => ({
+    description: `Mirroring: ${repo.remote.origin.url.href}`,
+
+    analytics_access_level: "disabled",
+    builds_access_level: "disabled",
+    container_registry_access_level: "disabled",
+    forking_access_level: "disabled",
+    issues_access_level: "disabled",
+    merge_requests_access_level: "disabled",
+    operations_access_level: "disabled",
+    packages_enabled: false,
+    pages_access_level: "disabled",
+    requirements_access_level: "disabled",
+    security_and_compliance_access_level: "disabled",
+    snippets_access_level: "disabled",
+    wiki_access_level: "disabled",
+  });
+
+  async function createGitlabMirror(repo) {
+    gitlab.log.info(`Creating project: ${repo.project}...`);
+    const res = await gitlab.api("POST /projects", {
+      body: {
+        name: repo.name,
+        import_url: repo.remote.origin.url.href,
+        ...getGitlabMirrorProjectSettings(repo),
+      },
+    });
+
+    if (res.ok) {
+      gitlab.log.info(`Created project: ${repo.project}...`);
+    } else {
+      gitlab.log.info(`Failed to create project: ${repo.project}...`);
+      throw res;
+    }
+  }
+
+  async function updateGitlabMirror(project) {
+    const res = await gitlab.api(`PUT /projects/${project.id}`, {
+      body: {
+        ...getGitlabMirrorProjectSettings(repo),
+      },
+    });
+
+    if (!res.ok) {
+      throw res;
+    }
+  }
+
+  async function ensureGitlabMirror(repo) {
+    const res = await gitlab.api(
+      `/projects/${encodeURIComponent(repo.project)}`
+    );
+
+    if (res.ok) {
+      await updateGitlabMirror(res.data);
+      gitlab.log.info(`Project Found: ${repo.project}`);
+      return;
+    }
+
+    await createGitlabMirror(repo);
+  }
+
+  async function removeGitlabMirrorBranchProtection(repo) {
+    const res = await gitlab.api(
+      `/projects/${encodeURIComponent(repo.project)}/protected_branches`
+    );
+
+    for (const item of res.data) {
+      await gitlab.api(
+        `DELETE /projects/${encodeURIComponent(
+          repo.project
+        )}/protected_branches/${item.name}`
+      );
+      gitlab.log.info(`Removed branch protection: ${item.name}`);
+    }
+  }
+
+  await ensureGitlabMirror(repo);
+
+  await removeGitlabMirrorBranchProtection(repo);
+
+  await ensureGitMirrorRemote(repo, "gitlab");
+}
+
+async function sync(repo) {
+  if (repo.current_branch !== "main") {
+    throw new Error(`Current branch: ${repo.current_branch}, expected: main`);
+  }
+
+  for (const remote of Object.keys(repo.remote)) {
+    if (!/^origin-[a-z]+$/.test(remote)) {
+      continue;
+    }
+
+    await $`git push ${remote} --force`;
+  }
+}
+
+const repo = await getRepoInfo();
+
+switch (argv._[0]) {
+  case "init": {
+    await init(repo);
+    break;
+  }
+  case "sync": {
+    await sync(repo);
+    break;
+  }
+  default: {
+    if (
+      !Object.keys(repo.remote).filter((remote) =>
+        /^origin-[a-z]+$/.test(remote)
+      ).length
+    ) {
+      await init(repo);
+    }
+
+    await sync(repo);
+  }
+}
