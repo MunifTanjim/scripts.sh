@@ -6,11 +6,23 @@ import { GitLab } from "./zx/gitlab.mjs";
 
 $.verbose = false;
 
+const askBool = async (prompt) => {
+  return await question(`${prompt} [y/N] `).then((answer) => {
+    return answer.toLowerCase() == 'y';
+  })
+}
+
 async function getRepoInfo() {
   let ret;
 
-  ret = await $`git remote`;
+  ret = await $`git branch --show-current`;
+  const current_branch = ret.stdout.trim();
 
+  if (current_branch !== "main") {
+    throw new Error(`Current branch: ${current_branch}, expected: main`);
+  }
+
+  ret = await $`git remote`;
   const remote_names = ret.stdout.trim().split("\n");
 
   const remote = {};
@@ -32,9 +44,6 @@ async function getRepoInfo() {
 
     remote[remote_name].url = remote[remote_name]["fetch"][0];
   }
-
-  ret = await $`git branch --show-current`;
-  const current_branch = ret.stdout.trim();
 
   const project = remote.origin.fetch[0].pathname
     .replace(/^\//, "")
@@ -89,10 +98,14 @@ async function init(repo) {
 
   async function createGitlabMirror(repo) {
     gitlab.log.info(`Creating project: ${repo.project}...`);
+
+    const isPublic = await askBool("Make project public?");
+
     const res = await gitlab.api("POST /projects", {
       body: {
         name: repo.name,
         import_url: repo.remote.origin.url.href,
+        visibility: isPublic ? 'public' : 'private',
         ...getGitlabMirrorProjectSettings(repo),
       },
     });
@@ -154,10 +167,7 @@ async function init(repo) {
 }
 
 async function sync(repo) {
-  if (repo.current_branch !== "main") {
-    throw new Error(`Current branch: ${repo.current_branch}, expected: main`);
-  }
-
+  $.verbose = true;
   for (const remote of Object.keys(repo.remote)) {
     if (!/^origin-[a-z]+$/.test(remote)) {
       continue;
@@ -165,6 +175,7 @@ async function sync(repo) {
 
     await $`git push ${remote} --force`;
   }
+  $.verbose = false;
 }
 
 const repo = await getRepoInfo();
