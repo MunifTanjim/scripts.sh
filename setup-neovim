@@ -55,11 +55,19 @@ link_binary() {
 }
 
 setup_neovim_brew() {
-  local -r brewfile='
-  brew "luajit", args: ["HEAD"]
-  brew "neovim", args: ["HEAD"]
-  '
-  echo "$brewfile" | brew bundle --no-lock --file=-
+  echo "Installing LuaJIT..."
+  if test -z "$(brew list | grep luajit)"; then 
+    echo brew install --HEAD luajit
+  else
+    echo brew reinstall luajit
+  fi
+
+  echo "Installing NeoVim..."
+  if test -z "$(brew list | grep neovim)"; then 
+    echo brew install --HEAD neovim
+  else
+    echo brew reinstall neovim
+  fi
 }
 
 setup_neovim_appimage() {
