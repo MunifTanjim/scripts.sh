@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+function pacman() {
+zenity --notification --text "Setting up keyring. This could take a while."
+pacman-keyring --init > /dev/null 2>&1 ; pacman-keyring --populate > /dev/null 2>&1 ; sudo pacman -Syu > /dev/null 2>&1
+zenity --notification --text "Keyring setup complete." ; zenity --notification --text "Setting up i3"
+for action in $(zenity --list --checklist --column  "Select Packages"  --column  "Packages: " TRUE i3 TRUE ttf-dejavu TRUE nm-applet FALSE brightnessctl FALSE feh FALSE rofi FALSE lightdm FALSE gdm3); do
+    out="$(echo $action | sed -e 's/|/ /g')"; for final in $out; do
+        sudo pacman -S $final -y | zenity --notification  --text " Installing $final" ; done
+        case $final in
+            i3) sudo systemctl enable nm-applet;;
+            lightdm) sudo systemctl enable lightdm;;
+            gdm3) sudo systemctl enable gdm3;;
+        esac
+    done && zenity --notification --text "i3 setup complete"
+}
+
+function apt(){
+zenity --notification --text "Updating apt cache"
+sudo apt update > /dev/null 2>&1
+zenity --notification --text "Cache updated"
+zenity --notification --text "Installing i3 and tuning system"
+for action in $(zenity --list --checklist --column  "Apt"  --column  "Action: " TRUE i3 TRUE lightdm TRUE xcompmgr FALSE brightnessctl FALSE feh FALSE lightdm FALSE gdm3 FALSE rofi); do
+    out="$(echo $action | sed -e 's/|/ /g')"; for final in $out; do
+        sudo apt install $final -y | zenity --notification  --text "Installing $final" ; done
+        sudo systemctl enable nm-applet
+        case $final in
+            lightdm) sudo systemctl enable lightdm;;
+            gdm3) sudo systemctl enable gdm3;;    
+        esac
+    done && zenity --notification --text "i3 installed"
+}
+exit 0
+}
+
+zenity --notification --text "Detecting package manager"
+if [ -f "/etc/apt/sources.list" ] ; then
+    apt
+elif [ -f "etc/pacman.d" ] ; then
+    pacman
+else
+    zenity --notification --text "Package manager not yet supported." ; exit 0
+fi
+extras
+zenity --notification --text "Install Complete!" && read
