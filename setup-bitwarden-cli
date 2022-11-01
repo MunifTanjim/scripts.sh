@@ -4,7 +4,7 @@ set -eu
 
 declare -r prefix_path="${HOME}/.local"
 
-declare -r temp_dir="$(mktemp --directory /tmp/bitwarden-cli--XXXXXXXXX)"
+declare -r temp_dir="$(mktemp -d /tmp/bitwarden-cli--XXXXXXXXX)"
 
 declare platform=""
 if [[ $OSTYPE = darwin* ]]; then
@@ -26,7 +26,11 @@ move() {
 cd "${temp_dir}"
 
 echo "Downloading archive..."
-wget -q --show-progress "https://vault.bitwarden.com/download/?app=cli&platform=${platform}" -O bw.zip
+if command -v curl >/dev/null 2>&1; then
+  curl --progress-bar --continue-at - --output bw.zip -L "https://vault.bitwarden.com/download/?app=cli&platform=${platform}"
+elif command -v wget >/dev/null 2>&1; then
+  wget -q --show-progress "https://vault.bitwarden.com/download/?app=cli&platform=${platform}" -O bw.zip
+fi
 
 echo "Extracting archive..."
 unzip -o -q bw.zip -d .
