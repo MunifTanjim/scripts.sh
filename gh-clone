@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+declare REPO_DIR_BASE="${HOME}/Dev/github"
+
+declare owner
+declare repo
+declare repo_dir
+
+declare gh_flags=""
+declare git_flags=""
+
+while (( "$#" )); do
+  case "$1" in
+    -u|--upstream-remote-name)
+      gh_flags="${gh_flags} ${1} ${2}"
+      shift 2;
+      ;;
+    --)
+      shift 1;
+      break
+      ;;
+    *)
+      if test -z "${owner}"; then
+        if [[ "${1}" = */* ]]; then
+          owner="${1%%/*}"
+          repo="${1##*/}"
+        else
+          owner="$(gh api graphql -f query="query{viewer{login}}" --jq ".data.viewer.login" | cat)"
+          repo="${1}"
+        fi
+      elif test -z "${repo_dir}"; then
+        repo_dir="${1}"
+      else
+        echo "unexpected argument"
+        exit 1
+      fi
+      shift 1
+      ;;
+  esac
+done
+
+if test -z "${owner}"; then
+  echo "missing argument: repository"
+  exit 1
+fi
+
+if test -z "${repo_dir}"; then
+  repo_dir="${owner}/${repo}"
+fi
+
+repo_dir="${REPO_DIR_BASE}/${repo_dir}"
+
+git_flags="${@}"
+
+if ! test -d "$(dirname "${repo_dir}")"; then
+  mkdir -p "$(dirname "${repo_dir}")"
+fi
+
+if test -d "${repo_dir}"; then
+  echo "${owner}/${repo} already exists!"
+  exit 1
+fi
+
+exec gh repo clone "${owner}/${repo}" "${repo_dir}" ${gh_flags} -- ${git_flags}
