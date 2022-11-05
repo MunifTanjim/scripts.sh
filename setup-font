@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+declare -r FONTS_DIR="${HOME}/.local/share/fonts"
+
+mkdir -p "${FONTS_DIR}"
+
+declare -A FONTS=()
+FONTS["JetBrainsMono"]="https://github.com/JetBrains/JetBrainsMono/releases/download/v2.242/JetBrainsMono-2.242.zip"
+FONTS["FiraCode"]="https://github.com/tonsky/FiraCode/releases/download/6.2/Fira_Code_v6.2.zip"
+
+declare font=""
+
+select_font() {
+  PS3='Select Font: '
+  select _font in "${!FONTS[@]}"; do
+    if [[ -n "${_font}" ]]; then
+      if [[ -n "${FONTS[${_font}]}" ]]; then
+        font="${_font}"
+        break
+      fi
+    fi
+  done
+}
+
+download_font() {
+  cd "${FONTS_DIR}"
+
+  echo "Downloading font: ${font}"
+  local -r url="${FONTS[${font}]}"
+  wget --quiet --show-progress "${url}" -O "./${font}.zip"
+
+  echo "Extracting archive..."
+  unzip -o -q "./${font}.zip" -d "${font}"
+}
+
+update_font_cache() {
+  echo "Updating font cache..."
+  sudo fc-cache -f
+}
+
+select_font
+
+download_font
+
+update_font_cache
+
+echo "Done!"
