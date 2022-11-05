@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+setup_for_darwin() {
+  echo "Not implemented!"
+}
+
+setup_for_debian() {
+  local -r app_path="/opt/kitty.app"
+
+  echo "Downloading kitty..."
+  # curl -fsSL https://sw.kovidgoyal.net/kitty/installer.sh | sudo sh /dev/stdin \
+  #   dest=/opt installer=nightly launch=n 
+  #
+  # sudo chown -R "${USER}":"${USER}" "${app_path}"
+
+  echo "Installing kitty..."
+  local -r bin_dir="${HOME}/.local/bin"
+  ln -nsf ${app_path}/bin/kitty "${bin_dir}"
+
+  echo "Installing manual pages..."
+  gzip -c ${app_path}/share/man/man1/kitty.1 | tee ~/.local/share/man/man1/kitty.1.gz > /dev/null
+  gzip -c ${app_path}/share/man/man5/kitty.conf.5 | tee ~/.local/share/man/man5/kitty.conf.5.gz > /dev/null
+
+  echo "Updating terminfo database..."
+  tic -x ${app_path}/lib/kitty/terminfo/kitty.terminfo
+
+  echo "Adding desktop shortcut..."
+  local -r desktop_applications_dir="${HOME}/.local/share/applications"
+  desktop-file-install --dir="${desktop_applications_dir}" ${app_path}/share/applications/kitty.desktop
+  desktop-file-install --dir="${desktop_applications_dir}" ${app_path}/share/applications/kitty-open.desktop
+
+  local -r dark_icon_path="${app_path}/share/icons/hicolor/1024x1024/kitty-dark.png"
+  mkdir -p "$(dirname "${dark_icon_path}")"
+  curl -o "${dark_icon_path}" -fsSL https://github.com/DinkDonk/kitty-icon/raw/main/kitty-dark.png 
+
+  sed -i "s|Icon=kitty|Icon=${dark_icon_path}|g" "${desktop_applications_dir}"/kitty*.desktop
+  sed -i "s|Exec=kitty|Exec=${app_path}/bin/kitty|g" "${desktop_applications_dir}"/kitty*.desktop
+  update-desktop-database "${desktop_applications_dir}"
+
+  echo "Done!"
+}
+
+case $OSTYPE in
+  darwin*)
+    setup_for_darwin;;
+  linux*)
+    setup_for_debian;;
+  *)
+    echo "Unknown OS!"
+    exit 1;;
+esac
