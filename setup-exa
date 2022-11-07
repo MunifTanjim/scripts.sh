@@ -4,7 +4,7 @@ set -eu
 
 declare -r prefix_path="${HOME}/.local"
 
-declare -r temp_dir="$(mktemp --directory /tmp/exa--XXXXXXXXX)"
+declare -r temp_dir="$(mktemp -d /tmp/exa--XXXXXXXXX)"
 
 move() {
   local -r src="$1"
@@ -25,7 +25,13 @@ echo "Extracting archive..."
 unzip -o -q "${temp_dir}/*.zip"
 
 echo "Setting up: exa"
-move ./bin/exa "${prefix_path}/bin/exa"
+
+if test "$(uname -m)" = "aarch64"; then
+  cargo install exa
+else
+  move ./bin/exa "${prefix_path}/bin/exa"
+fi
+
 move ./man/exa.1 "${prefix_path}/man/man1/exa.1"
 move ./man/exa_colors.5 "${prefix_path}/man/man5/exa_colors.5"
 move ./completions/exa.bash "${prefix_path}/share/bash-completion/exa"
