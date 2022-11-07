@@ -1,36 +1,10 @@
 #!/usr/bin/env bash
 
-set -eu
+set -euo pipefail
 
-declare -r prefix_path="${HOME}/.local"
+declare pattern="amd64.deb"
+if test "$(uname -m)" = "aarch64"; then
+  pattern="arm64.deb"
+fi
 
-declare -r temp_dir="$(mktemp --directory /tmp/zoxide--XXXXXXXXX)"
-
-move() {
-  local -r src="$1"
-  local -r dest="$2"
-  local -r dest_dir="$(dirname "$dest")"
-  if [ ! -d "${dest_dir}" ]; then
-    mkdir -p "${dest_dir}"
-  fi
-  mv "${src}" "${dest}"
-}
-
-cd "${temp_dir}"
-
-echo "Downloading archive..."
-gh release download --repo ajeetdsouza/zoxide --pattern "*-x86_64-*linux-musl.tar.gz"
-
-echo "Extracting archive..."
-tar -xzf ${temp_dir}/*.tar.gz
-
-echo "Setting up: zoxide"
-move ./zoxide "${prefix_path}/bin/zoxide"
-for file in ./man/**/*.1; do
-  move "${file}" "${prefix_path}/man/man1/$(basename "${file}")"
-done
-
-echo "Cleaning up..."
-rm -rf "${temp_dir}"
-
-echo "Done!"
+setup-from-github-release "ajeetdsouza/zoxide" "${pattern}"
