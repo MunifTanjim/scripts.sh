@@ -21,7 +21,12 @@ setup_for_darwin() {
 }
 
 setup_for_debian() {
-  setup-from-github-release "sharkdp/fd" "musl.+amd64.deb"
+  local pattern="musl.+amd64.deb"
+  if test "$(uname -m)" = "aarch64"; then
+    pattern="arm64.deb"
+  fi
+
+  setup-from-github-release "sharkdp/fd" "${pattern}"
 }
 
 setup_fd() {
