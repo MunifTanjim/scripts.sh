@@ -3,7 +3,10 @@
 set -euo pipefail
 
 declare -r latest_version="$(curl -s "https://go.dev/VERSION?m=text")"
-declare -r archive_filename="${latest_version}.linux-amd64.tar.gz"
+declare archive_filename="${latest_version}.linux-amd64.tar.gz"
+if test "$(uname -m)" = "aarch64"; then
+  archive_filename="${latest_version}.linux-arm64.tar.gz"
+fi
 declare -r archive_url="https://golang.org/dl/${archive_filename}"
 
 declare installed_version=""
