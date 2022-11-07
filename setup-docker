@@ -13,8 +13,19 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 sudo apt-key fingerprint 0EBFCD88
 
 echo "Adding APT Repository..."
-codename=$(lsb_release -cs)
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu ${codename} stable"
+
+declare arch
+case "$(uname -m)" in
+  x86_64) arch="amd64";;
+  aarch64) arch="arm64";;
+  *)
+    echo "Unsupported architecture: ${arch}"
+    exit 1;;
+esac
+
+declare -r codename="$(lsb_release -cs)"
+
+sudo add-apt-repository "deb [arch=${arch}] https://download.docker.com/linux/ubuntu ${codename} stable"
 
 echo "Installing Docker..."
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io
