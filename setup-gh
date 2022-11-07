@@ -23,7 +23,11 @@ setup_for_debian() {
   ensure_tool wget
 
   local -r repo="cli/cli"
-  local -r url_pattern="linux_amd64.deb"
+  local url_pattern="linux_amd64.deb"
+  if test "$(uname -m)" = "aarch64"; then
+    url_pattern="linux_arm64.deb"
+  fi
+
   local -r url=$(curl -s "https://api.github.com/repos/${repo}/releases/latest" | jq -r --arg pattern "${url_pattern}" '.assets | map(.browser_download_url) | map(select(. | test($pattern)))[0]')
   local -r filename=$(basename "${url}")
 
