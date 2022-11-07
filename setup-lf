@@ -19,9 +19,14 @@ move() {
 
 cd "${temp_dir}"
 
+declare pattern="*linux-amd64.tar.gz"
+if test "$(uname -m)" = "aarch64"; then
+  pattern="*linux-arm64.tar.gz"
+fi
+
 echo "Downloading archive..."
 gh release download --archive tar.gz --repo gokcehan/lf
-gh release download --repo gokcehan/lf --pattern "*linux-amd64.tar.gz" -D ./bin
+gh release download --repo gokcehan/lf --pattern "${pattern}" -D ./bin
 
 echo "Extracting archive..."
 tar --strip-component=1 -xzf "${temp_dir}"/*.tar.gz
