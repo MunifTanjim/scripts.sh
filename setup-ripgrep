@@ -21,7 +21,11 @@ setup_for_darwin() {
 }
 
 setup_for_debian() {
-  setup-from-github-release "BurntSushi/ripgrep" "amd64.deb"
+  if test "$(uname -m)" = "aarch64"; then
+    cargo install ripgrep
+  else
+    setup-from-github-release "BurntSushi/ripgrep" "amd64.deb"
+  fi
 }
 
 setup_ripgrep() {
