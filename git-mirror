@@ -173,7 +173,7 @@ async function sync(repo) {
       continue;
     }
 
-    await $`git push ${remote} --force`;
+    await $`git push ${remote} --force --all --follow-tags`;
   }
   $.verbose = false;
 }
