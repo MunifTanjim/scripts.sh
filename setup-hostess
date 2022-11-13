@@ -6,7 +6,13 @@ case $OSTYPE in
   darwin*)
     pattern="_macos_amd64";;
   linux*)
-    pattern="_linux_amd64";;
+    if test "$(uname -m)" = "aarch64"; then
+      go install github.com/cbednarski/hostess@latest
+      exit 0
+    else
+      pattern="_linux_amd64"
+    fi
+    ;;
   *)
     exit 1;;
 esac
