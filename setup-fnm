@@ -14,6 +14,6 @@ if test -x "${install_dir}/fnm"; then
   # linux (without brew)
   echo "Setting up binary: fnm"
   if test "$(readlink --canonicalize-existing --no-newline "${bin_dir}/fnm")" != "${install_dir}/fnm"; then
-    echo ln -nsf "${install_dir}/fnm" "${bin_dir}/fnm"
+    ln -nsf "${install_dir}/fnm" "${bin_dir}/fnm"
   fi
 fi
