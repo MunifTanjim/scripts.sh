@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+declare temp_dir
+temp_dir="$(mktemp --directory /tmp/hugo--XXXXXXXXX)"
+
+declare selected_version
+selected_version="$(gh release list --repo gohugoio/hugo --exclude-drafts --limit 100 | awk '{ print $1 }' | fzf)"
+
+cd "${temp_dir}"
+
+echo "Downloading archive..."
+
+declare url
+url="$(gh release view "${selected_version}" --repo gohugoio/hugo --json assets --jq '.assets[].url' | fzf)"
+
+gh release download "${selected_version}" --repo gohugoio/hugo --pattern "$(basename "${url}")"
+
+echo "Setting up: hugo"
+sudo dpkg --install "$(basename "${url}")"
+
+echo "Cleaning up..."
+rm -rf "${temp_dir}"
+
+echo "Done!"
