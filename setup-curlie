@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ensure_tool() {
+  local -r tool="${1}"
+  if ! type "${tool}" >/dev/null 2>&1; then
+    echo "missing required tool: ${tool}"
+    exit 1
+  fi
+}
+
+setup_for_darwin() {
+  ensure_tool brew
+
+  echo '
+    tap "rs/tap"
+    brew "rs/tap/curlie"
+  ' | brew bundle --no-lock --file=-
+  brew install 
+}
+
+setup_for_debian() {
+  ensure_tool dpkg
+
+  local pattern="linux_amd64.deb"
+  if test "$(uname -m)" = "aarch64"; then
+    pattern="linux_arm64.deb"
+  fi
+
+  setup-from-github-release "rs/curlie" "${pattern}"
+}
+
+setup() {
+  case $OSTYPE in
+    darwin*)
+      setup_for_darwin;;
+    linux*)
+      setup_for_debian;;
+    *)
+      echo "Unknown OS!"
+      exit 1;;
+  esac
+}
+
+setup
