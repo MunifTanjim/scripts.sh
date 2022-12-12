@@ -13,7 +13,7 @@ ensure_command() {
 
 aws_whoami() {
   local -r identity_blob="$(aws sts get-caller-identity --output=json)"
-  local -r account_aliases_blob="$(aws iam list-account-aliases --max-items=1)"
+  local -r account_aliases_blob="$(aws iam list-account-aliases --max-items=1 2>/dev/null || echo '{"AccountAliases":["N/A"]}')"
 
   local -r account_alias="$(echo "${account_aliases_blob}" | jq -r '.AccountAliases[0]')"
   local -r account_id="$(echo "${identity_blob}" | jq -r '.Account')"
