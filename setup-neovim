@@ -59,14 +59,14 @@ setup_neovim_brew() {
   if test -z "$(brew list | grep luajit)"; then 
     echo brew install --HEAD luajit
   else
-    echo brew reinstall luajit
+    brew reinstall luajit
   fi
 
   echo "Installing NeoVim..."
   if test -z "$(brew list | grep neovim)"; then 
     echo brew install --HEAD neovim
   else
-    echo brew reinstall neovim
+    brew reinstall neovim
   fi
 }
 
