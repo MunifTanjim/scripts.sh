@@ -14,6 +14,38 @@ is_linux() {
   [[ $OSTYPE = linux* ]]
 }
 
+declare setup_method=""
+declare source_clean=""
+
+while (( "$#" )); do
+  case "$1" in
+    --appimage)
+      setup_method="appimage"
+      ;;
+    --brew)
+      setup_method="brew"
+      ;;
+    --source)
+      setup_method="source"
+      ;;
+    --clean)
+      source_clean="true"
+      ;;
+  esac
+done
+
+if [[ -z "${setup_method}" ]]; then
+  if is_darwin; then
+    setup_method="brew"
+  elif is_linux; then
+    setup_method="source"
+  else
+    echo "Unknown OS!"
+    exit 1
+  fi
+fi
+
+
 get_latest_reposiotry() {
   local repo_uri="${1}"
   local repo_dir="${2}"
@@ -108,7 +140,9 @@ setup_neovim_source() {
   fi
 
   echo "Running build..."
-  make distclean
+  if [[ -n "${source_clean}" ]]; then
+    make distclean
+  fi
   make CMAKE_BUILD_TYPE=Release CMAKE_INSTALL_PREFIX="${HOME}/.local" cmake
 
   echo "Installing..."
@@ -117,24 +151,20 @@ setup_neovim_source() {
   link_binary "nvim"
 }
 
-if [[ $# -gt 0 ]]; then
-  case "${1}" in
-    --appimage) setup_neovim_appimage "${2:-nightly}";;
-    --brew) setup_neovim_brew;;
-    --source) setup_neovim_source;;
-    *)
-      echo "Unknown flag!"
-      exit 1;;
-  esac
-else
-  case "${OSTYPE}" in
-    darwin*) setup_neovim_brew;;
-    linux*) setup_neovim_source;;
-    *)
-      echo "Unknown OS!"
-      exit 1;;
-  esac
-fi
+case "${setup_method}" in
+  appimage)
+    setup_neovim_appimage "${2:-nightly}"
+    ;;
+  brew)
+    setup_neovim_brew
+    ;;
+  source)
+    setup_neovim_source
+    ;;
+  *)
+    echo "Unknown setup method!"
+    exit 1;;
+esac
 
 echo "Creating binary link: vim -> nvim"
 ln -nsf "$(command -v nvim)" "${HOME}/.local/bin/vim"
