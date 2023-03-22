@@ -3,16 +3,17 @@
 
 import { URL } from "url";
 import { GitLab } from "./zx/gitlab.mjs";
+import { JetBrainsSpace } from "./zx/jetbrains-space.mjs";
 
 $.verbose = false;
 
-const askBool = async (prompt) => {
+const ask_bool = async (prompt) => {
   return await question(`${prompt} [y/N] `).then((answer) => {
-    return answer.toLowerCase() == 'y';
-  })
-}
+    return answer.toLowerCase() == "y";
+  });
+};
 
-async function getRepoInfo() {
+async function get_repo_info() {
   let ret;
 
   ret = await $`git branch --show-current`;
@@ -59,26 +60,29 @@ async function getRepoInfo() {
   };
 }
 
-async function refreshRepoInfo(repo) {
-  Object.assign(repo, await getRepoInfo());
+async function refresh_repo_info(repo) {
+  Object.assign(repo, await get_repo_info());
 }
 
-async function ensureGitMirrorRemote(repo, name) {
+async function ensure_git_mirror_remote(repo, name, remote_url) {
+  const url = new URL(remote_url);
+
   if (
-    repo.remote.origin.url.host === "gitlab.com" ||
-    repo.remote["origin-gitlab"]
+    repo.remote.origin.url.host === url.host ||
+    repo.remote[`origin-${name}`]
   ) {
     return;
   }
 
-  await $`git remote add origin-${name} https://gitlab.com/${repo.project}.git`;
-  await refreshRepoInfo(repo);
+  await $`git remote add origin-${name} ${url.href}`;
+
+  await refresh_repo_info(repo);
 }
 
-async function init(repo) {
-  const gitlab = await new GitLab({ name: "create-git-mirror" }).init();
+async function init_gitlab(repo) {
+  const gitlab = await new GitLab({ id: "git-mirror" }).init();
 
-  const getGitlabMirrorProjectSettings = (repo) => ({
+  const get_mirror_project_settings = () => ({
     description: `Mirroring: ${repo.remote.origin.url.href}`,
 
     analytics_access_level: "disabled",
@@ -96,17 +100,17 @@ async function init(repo) {
     wiki_access_level: "disabled",
   });
 
-  async function createGitlabMirror(repo) {
+  async function create_mirror() {
     gitlab.log.info(`Creating project: ${repo.project}...`);
 
-    const isPublic = await askBool("Make project public?");
+    const isPublic = await ask_bool("Make project public?");
 
     const res = await gitlab.api("POST /projects", {
       body: {
         name: repo.name,
         import_url: repo.remote.origin.url.href,
-        visibility: isPublic ? 'public' : 'private',
-        ...getGitlabMirrorProjectSettings(repo),
+        visibility: isPublic ? "public" : "private",
+        ...get_mirror_project_settings(repo),
       },
     });
 
@@ -118,11 +122,9 @@ async function init(repo) {
     }
   }
 
-  async function updateGitlabMirror(project) {
+  async function update_mirror(project) {
     const res = await gitlab.api(`PUT /projects/${project.id}`, {
-      body: {
-        ...getGitlabMirrorProjectSettings(repo),
-      },
+      body: get_mirror_project_settings(),
     });
 
     if (!res.ok) {
@@ -130,21 +132,21 @@ async function init(repo) {
     }
   }
 
-  async function ensureGitlabMirror(repo) {
+  async function ensure_mirror() {
     const res = await gitlab.api(
       `/projects/${encodeURIComponent(repo.project)}`
     );
 
     if (res.ok) {
-      await updateGitlabMirror(res.data);
+      await update_mirror(res.data);
       gitlab.log.info(`Project Found: ${repo.project}`);
       return;
     }
 
-    await createGitlabMirror(repo);
+    await create_mirror();
   }
 
-  async function removeGitlabMirrorBranchProtection(repo) {
+  async function remove_mirror_branch_protection() {
     const res = await gitlab.api(
       `/projects/${encodeURIComponent(repo.project)}/protected_branches`
     );
@@ -159,28 +161,140 @@ async function init(repo) {
     }
   }
 
-  await ensureGitlabMirror(repo);
+  await ensure_mirror();
 
-  await removeGitlabMirrorBranchProtection(repo);
+  await remove_mirror_branch_protection();
 
-  await ensureGitMirrorRemote(repo, "gitlab");
+  const remote_url = `https://gitlab.com/${repo.project}.git`;
+  await ensure_git_mirror_remote(repo, "gitlab", remote_url);
+}
+
+async function init_jetbrains_space(repo) {
+  const space = await new JetBrainsSpace({
+    id: "git-mirror",
+    site: "muniftanjim",
+  }).init();
+
+  const project_key = "key:PERSONAL";
+  const base_url = `/projects/${project_key}/repositories/${repo.name}`;
+
+  const repo_description = `Mirroring: ${repo.remote.origin.url.href}`;
+  const get_mirror_repository_settings = () => ({
+    settings: {
+      mirror: {
+        version: "",
+        url: `https://github.com/${repo.project}.git`,
+        detachHEAD: false,
+        fetchPeriodically: true,
+        fetchBeforeGitCall: true,
+      },
+    },
+  });
+
+  async function create_mirror() {
+    space.log.info(`Creating project: ${repo.name}...`);
+
+    const { settings } = get_mirror_repository_settings(repo);
+    const res = await space.api(`POST ${base_url}/migrate`, {
+      body: {
+        description: repo_description,
+        remote: {
+          url: settings.mirror.url,
+        },
+        mirror: {
+          syncPeriodically: settings.mirror.fetchPeriodically,
+          syncOnFetch: settings.mirror.fetchBeforeGitCall,
+        },
+      },
+    });
+
+    if (res.ok) {
+      space.log.info(`Created project: ${repo.name}...`);
+    } else {
+      space.log.info(`Failed to create project: ${repo.name}...`);
+      throw res;
+    }
+  }
+
+  async function update_mirror() {
+    let res = await space.api(`POST ${base_url}/settings`, {
+      body: get_mirror_repository_settings(repo),
+    });
+
+    if (!res.ok) {
+      throw res;
+    }
+
+    res = await space.api(`POST ${base_url}/description`, {
+      body: { description: repo_description },
+    });
+
+    if (!res.ok) {
+      throw res;
+    }
+  }
+
+  async function ensure_mirror() {
+    const res = await space.api(base_url);
+
+    if (res.ok) {
+      await update_mirror();
+      space.log.info(`Repository Found: ${res.data.name}`);
+      return;
+    }
+
+    await create_mirror();
+  }
+
+  async function get_remote_url() {
+    const res = await space.api(`${base_url}/url`);
+    if (!res.ok) {
+      throw res;
+    }
+    return res.data.httpUrl;
+  }
+
+  await ensure_mirror();
+
+  const remote_url = await get_remote_url();
+  await ensure_git_mirror_remote(repo, "jetbrains-space", remote_url);
+}
+
+const REMOTE_SERVICE = {
+  gitlab: {
+    init: init_gitlab,
+    has_auto_sync: false,
+  },
+  ["jetbrains-space"]: {
+    init: init_jetbrains_space,
+    has_auto_sync: true,
+  },
+};
+
+async function init(repo) {
+  for (const remote of Object.values(REMOTE_SERVICE)) {
+    await remote.init(repo);
+  }
 }
 
 async function sync(repo) {
   $.verbose = true;
-  for (const remote of Object.keys(repo.remote)) {
-    if (!/^origin-[a-z]+$/.test(remote)) {
+  for (const remote of Object.keys(REMOTE_SERVICE)) {
+    if (
+      !repo.remote[`origin-${remote}`] ||
+      REMOTE_SERVICE[remote].has_auto_sync
+    ) {
       continue;
     }
 
-    await $`git push ${remote} --force --all --follow-tags`;
+    await $`git push origin-${remote} --force --all --follow-tags`;
     // push non-annotated tags
-    await $`git push ${remote} --force --tags`;
+    await $`git push origin-${remote} --force --tags`;
   }
   $.verbose = false;
 }
 
-const repo = await getRepoInfo();
+const repo = await get_repo_info();
 
 switch (argv._[0]) {
   case "init": {
@@ -193,9 +307,9 @@ switch (argv._[0]) {
   }
   default: {
     if (
-      !Object.keys(repo.remote).filter((remote) =>
-        /^origin-[a-z]+$/.test(remote)
-      ).length
+      Object.keys(REMOTE_SERVICE).some(
+        (remote) => !repo.remote[`origin-${remote}`]
+      )
     ) {
       await init(repo);
     }

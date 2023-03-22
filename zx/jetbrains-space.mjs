@@ -2,28 +2,42 @@ import assert from "assert";
 import { CacheFile } from "./cache.mjs";
 import { Logger } from "./logger.mjs";
 
-export class GitLab {
-  #baseUrl = "https://gitlab.com/api/v4";
+export class JetBrainsSpace {
+  #baseUrl;
   #cache;
+  #site;
 
-  constructor({ id }) {
+  #is_initialized;
+
+  /**
+   * @param {{ id: string, site: string }}
+   */
+  constructor({ id, site }) {
     this.id = id.trim();
     assert(Boolean(this.id), "missing id");
 
-    this.#cache = new CacheFile(`gitlab/${this.id}`);
+    this.#site = site.trim();
+    if (!this.#site.includes(".")) {
+      this.#site = `${this.#site}.jetbrains.space`;
+    }
+    this.#baseUrl = `https://${this.#site}/api/http`;
+
+    this.#cache = new CacheFile(`jetbrains-space/${site}---${this.id}`);
   }
 
-  log = new Logger(chalk.bgYellowBright.black.bold.dim(" gitlab "));
+  log = new Logger(chalk.bgBlueBright.black.bold.dim(" space "));
 
   #verifyToken = async () => {
     this.log.info("Checking Token validity...");
 
-    const { ok, data } = await this.api("/user");
+    const { ok, data } = await this.api(
+      "/team-directory/profiles/me?$fields=id,username"
+    );
 
     if (ok) {
       this.log.info(`Authenticated as: ${data.username}`);
     } else {
-      this.log.error(data.message);
+      this.log.error(data.error_description || data.error);
     }
 
     return ok;
@@ -39,15 +53,15 @@ export class GitLab {
       }
     }
 
-    this.log.log("For creating Personal Access Token, visit:");
+    this.log.log("For creating Personal Token, visit:");
     this.log.log(
-      `  https://gitlab.com/-/profile/personal_access_tokens?name=${os.hostname()}:cli:${
-        this.id
-      }&scopes=api,read_user`
+      `  https://${this.#site}/m/me/authentication?tab=PermanentTokens`
     );
+    this.log.log(`Name: ${os.hostname()}:cli:${this.id}`);
+    this.log.log(`Permissions: Manage Git repositories, View project details`);
 
     cache.content.token = await question(
-      this.log.fmt("input", "Enter API Token: ")
+      this.log.fmt("input", "Enter Token: ")
     );
 
     const valid = await this.#verifyToken();
@@ -60,10 +74,18 @@ export class GitLab {
   };
 
   init = async () => {
-    await this.#ensureToken();
+    if (!this.#is_initialized) {
+      await this.#ensureToken();
+    }
+
+    this.#is_initialized = true;
     return this;
   };
 
+  /**
+   * @param {RequestInfo} endpoint
+   * @param {RequestInit=} options
+   */
   api = async (endpoint, options = {}) => {
     const [, method, path] = endpoint.match(/^(?:([A-Z]+) )?(\/.+)$/);
     /** @type RequestInfo */
@@ -71,8 +93,9 @@ export class GitLab {
       url: `${this.#baseUrl}${path}`,
       method,
       headers: {
-        "private-token": `${this.#cache.content.token}`,
-        "content-type": "application/json",
+        Authorization: `Bearer ${this.#cache.content.token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
       ...options,
     };
@@ -85,7 +108,7 @@ export class GitLab {
 
     const { ok, status } = response;
     const data =
-      status === 204
+      status === 204 || response.headers.get("content-length") === "0"
         ? null
         : /application\/json/.test(response.headers.get("content-type"))
         ? await response.json()
