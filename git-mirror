@@ -13,14 +13,20 @@ const ask_bool = async (prompt) => {
   });
 };
 
+const allowed_default_branches = ["main", "master"];
+
 async function get_repo_info() {
   let ret;
 
   ret = await $`git branch --show-current`;
   const current_branch = ret.stdout.trim();
 
-  if (current_branch !== "main") {
-    throw new Error(`Current branch: ${current_branch}, expected: main`);
+  if (!allowed_default_branches.includes(current_branch)) {
+    throw new Error(
+      `Current branch: ${current_branch}, expected: ${allowed_default_branches.join(
+        "/"
+      )}`
+    );
   }
 
   ret = await $`git remote`;
