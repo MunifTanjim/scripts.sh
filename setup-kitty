@@ -3,7 +3,21 @@
 set -euo pipefail
 
 setup_for_darwin() {
-  echo "Not implemented!"
+  echo "Updating icon..."
+
+  local -r dark_icon_path="$(mktemp -t -u 'kitty-dark.XXX.icns')"
+  curl -o "${dark_icon_path}" -fsSL https://github.com/DinkDonk/kitty-icon/raw/main/kitty-dark.icns 
+
+  osascript -e 'set aFile to (POSIX file "/Applications/kitty.app") as alias' \
+    -e 'tell application "Finder" to open information window of aFile' \
+    -e 'activate application "Finder"'
+
+  open -W "${dark_icon_path}"
+
+  sudo killall Finder
+  sudo killall Dock
+
+  echo "Done!"
 }
 
 setup_for_debian() {
