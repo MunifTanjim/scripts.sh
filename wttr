@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+declare params=()
+declare path=""
+
+wttr() {
+  local data=()
+
+  if [[ "${path}" == *.png ]]; then
+    path="${path::-4}"
+    for param in "${params[@]}"; do
+      path="${path}_${param}"
+    done
+    path="${path}.png"
+  else
+    for param in "${params[@]}"; do
+      data+=("--data-urlencode")
+      data+=("${param}")
+    done
+  fi
+
+  curl -fGsS -H "Accept-Language: ${LANG%_*}" "${data[@]}" --compressed "wttr.in/${path}"
+}
+
+wttr_help() {
+  local help
+  help="$(curl -fGsS wttr.in/:help)"
+
+  local LOCATION
+  LOCATION="$(echo "${help}" | awk '/^Supported location types:/{flag=1; next} /^\w/{flag=0} flag' \
+    | awk NF \
+    | sed 's/\///' \
+    | sed -E 's/~(\w+)\+(\w+)  (.+)#(.+)\(\+ for spaces\)/"~\1 \2"\3#\4/' \
+    | sed 's/^  //')"
+
+  local PNG_OPTIONS
+  PNG_OPTIONS="$(echo "${help}" | awk '/^PNG options:/{flag=1; next} /^\w/{flag=0} flag' | awk NF | awk 'NR>1' | sed 's/^  //')"
+
+  local VIEW_OPTIONS
+  VIEW_OPTIONS="$(echo "${help}" | awk '/^View options:/{flag=1; next} /^\w/{flag=0} flag' | awk NF | sed 's/^  //')"
+
+  local UNIT_OPTIONS
+  UNIT_OPTIONS="$(echo "${help}" | awk '/^Units:/{flag=1; next} /^\w/{flag=0} flag' | awk NF | sed 's/^  //')"
+
+  local PAGE
+  PAGE="$(echo "${help}" | awk '/^Special URLs:/{flag=1; next} /^\w/{flag=0} flag' | awk NF | sed 's/\/://' | sed 's/^  //')"
+
+  local LANG
+  LANG="$(echo "${help}" | awk '/^Supported languages:/{flag=1; next} /^\w/{flag=0} flag' | awk NF | sed 's/\/://' | sed 's/^  //')"
+
+  cat <<EOL
+wttr
+  Wrapper for wttr.in
+  https://github.com/chubin/wttr.in
+
+USAGE:
+  wttr [LOCATION] [UNIT_OPTIONS...] [VIEW_OPTIONS...] [lang=LANG] [format=FORMAT_STRING]
+  wttr [LOCATION].png [UNIT_OPTIONS...] [VIEW_OPTIONS...] [PNG_OPTIONS...] [lang=LANG] [format=FORMAT_STRING]
+  wttr moon[@date] [+city_name] [lang=LANG]
+  wttr :[PAGE] [lang=LANG]
+  wttr --help
+
+LOCATION:
+${LOCATION}
+
+UNIT_OPTIONS:
+${UNIT_OPTIONS}
+
+VIEW_OPTIONS:
+${VIEW_OPTIONS}
+
+PNG_OPTIONS:
+${PNG_OPTIONS}
+
+PAGE:
+${PAGE}
+
+LANG:
+${LANG}
+
+FORMAT_STRING:
+
+  Pre-defined Format:
+    1
+    2
+    3    # "%l:+%c+%t\n"
+    4
+    v2   # data rich w/ emoji
+    v2d  # data rich w/ nerd font (day)
+    v2n  # data rich w/ nerd font (night)
+    j1   # json
+    p1   # prometheus
+
+  Format Token:
+    c    # Weather condition
+    C    # Weather condition textual name
+    x    # Weather condition, plain-text symbol
+    h    # Humidity
+    t    # Temperature (Actual)
+    f    # Temperature (Feels Like)
+    w    # Wind
+    l    # Location
+    m    # Moon phase 🌑🌒🌓🌔🌕🌖🌗🌘
+    M    # Moon day
+    p    # Precipitation (mm/3 hours)
+    P    # Pressure (hPa)
+    u    # UV index (1-12)
+
+    D    # Dawn*
+    S    # Sunrise*
+    z    # Zenith*
+    s    # Sunset*
+    d    # Dusk*
+    T    # Current time*
+    Z    # Local timezone
+
+    (*times are shown in the local timezone)
+
+EOL
+}
+
+if [[ -t 1 ]] && [[ "$(tput cols)" -lt 125 ]]; then
+  params+=("n")
+fi
+
+for param in ${WTTR_PARAMS:-""}; do
+  params+=("${param}")
+done
+
+if [[ -n "${1:-}" ]]; then
+  if [[ "${1}" = "-h" ]] || [[ "${1}" = "--help" ]]; then
+    wttr_help
+    exit 0
+  fi
+
+  path="${1// /+}"
+  shift
+
+  while (( "$#" )); do
+    params+=("${1}")
+    shift
+  done
+fi
+
+wttr
