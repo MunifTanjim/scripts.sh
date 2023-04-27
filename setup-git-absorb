@@ -15,6 +15,10 @@ move() {
   mv "${src}" "${dest}"
 }
 
+setup_for_darwin() {
+  echo 'brew "git-absorb"' | brew bundle --no-lock --file=-
+}
+
 setup_for_debian() {
   declare -r prefix_path="${HOME}/.local"
 
@@ -46,6 +50,8 @@ setup_for_debian() {
 }
 
 case "${OSTYPE}" in
+  darwin*)
+    setup_for_darwin;;
   linux*)
     setup_for_debian;;
   *)
