@@ -51,6 +51,110 @@ ncd_ec2_ip() {
   exec aws-ec2-ip $@
 }
 
+ncd_init_aws() {
+  echo "Checking AWS Login Status..."
+
+  if ! aws sts get-caller-identity --query "Account" >/dev/null 2>&1; then
+    aws sso login
+  fi
+
+  rm -f "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off"
+}
+
+ncd_off_aws() {
+  echo "Turning Off AWS CodeArtifact Token Check..."
+
+  touch "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off"
+}
+
+ncd_init_docker() {
+  echo "Checking Docker Desktop..."
+
+  osascript >/dev/null <<EOL
+  if not (application "Docker Desktop" is running) then
+    tell application "Docker Desktop" to activate
+  end if
+EOL
+}
+
+ncd_off_docker() {
+  echo "Closing Docker Desktop..."
+
+  osascript >/dev/null <<EOL
+  if application "Docker Desktop" is running then
+    tell application "Docker Desktop" to quit
+  end if
+EOL
+}
+
+ncd_init_vpn() {
+  echo "Checking VPN Connection..."
+
+  local -r openvpn_connect="/Applications/OpenVPN Connect/OpenVPN Connect.app/contents/MacOS/OpenVPN Connect"
+  local -r profile_name="vpn.newscred.com [newscred]"
+
+  osascript >/dev/null <<EOL
+  if not (application "OpenVPN Connect" is running) then
+    do shell script "'${openvpn_connect}' --minimize --skip-startup-dialogs"
+  end if
+
+  tell application "System Events" to tell process "OpenVPN Connect" 
+    repeat until menu bar item 1 of menu bar 2 exists
+      delay 0.1
+    end repeat
+
+    tell menu bar item 1 of menu bar 2
+      click
+      tell menu 1
+        click
+        if (menu item "Connect" exists) or not (menu item "${profile_name}" exists) then
+          tell menu item 3
+            click
+            click menu item "${profile_name}" of menu 1
+          end tell
+        else
+          key code 53 -- <esc> close menu
+        end if
+      end tell
+    end tell
+  end tell
+EOL
+}
+
+ncd_off_vpn() {
+  echo "Disconnecting VPN..."
+
+  osascript >/dev/null <<EOL
+  if application "OpenVPN Connect" is running then
+    tell application "System Events" to tell process "OpenVPN Connect" 
+      tell menu bar item 1 of menu bar 2
+        click
+        tell menu 1
+          click
+          if menu item "Disconnect" exists then
+            click menu item "Disconnect"
+          else
+            key code 53 -- <esc> close menu
+          end if
+        end tell
+      end tell
+    end tell
+  end if
+EOL
+}
+
+ncd_init() {
+  ncd_init_aws
+  ncd_init_vpn
+  ncd_init_docker
+}
+
+ncd_off() {
+  ncd_off_aws
+  ncd_off_vpn
+  ncd_off_docker
+}
+
 ncd_dc() {
   eval "$(pyenv init -)"
   eval "$(pyenv virtualenv-init -)"
