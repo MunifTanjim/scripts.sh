@@ -10,6 +10,32 @@ __ncd_caching_policy() {
   (( ${#oldp} ))
 }
 
+__ncd_repo_names() {
+  integer ret=1
+
+  if ! zstyle -t ":completion:${curcontext%:*}:" cache-policy; then
+    zstyle ":completion:${curcontext%:*}:" cache-policy __ncd_caching_policy
+  fi
+
+  if ! zstyle -t ":completion:${curcontext%:*:*}:*:repo:names" sort; then
+    zstyle ":completion:${curcontext%:*:*}:*:repo:names" sort false
+  fi
+
+  local cachename="_ncd_repo_names"
+
+  if ( [[ ${(P)+cachename} -eq 0 ]] || _cache_invalid "${cachename#_}" ) \
+    && ! _retrieve_cache "${cachename#_}"; then
+      _message "listing repo names..."
+      _ncd_repo_names=($(ncd list:repo))
+      _store_cache ${cachename#_} _ncd_repo_names
+  fi
+
+  _describe -t repos "Repo Names" _ncd_repo_names \
+    && ret=0
+
+  return ret
+}
+
 __ncd_dc_containers() {
   integer ret=1
 
@@ -25,9 +51,8 @@ __ncd_dc_containers() {
 
   if ( [[ ${(P)+cachename} -eq 0 ]] || _cache_invalid "${cachename#_}" ) \
     && ! _retrieve_cache "${cachename#_}"; then
-      local workspace_dir="$(ncd workspace)"
       _message "reading docker containers..."
-      _ncd_dc_containers=($(cat "$(ncd workspace)/docker-compose.yml" | rq --input-yaml | jq -r '.services | keys | .[]'))
+      _ncd_dc_containers=($(ncd list:container))
       _store_cache ${cachename#_} _ncd_dc_containers
   fi
 
@@ -97,14 +122,41 @@ __ncd_arguments() {
           ;;
       esac
       ;;
+    list)
+      _ncd_list_things=("container" "repo" "repo_window")
+      _describe -t things "things" _ncd_list_things \
+        && ret=0
+      ;;
+    repo)
+      local curcontext="${curcontext}" state
+
+      _arguments -C \
+        '1: :->name' \
+        && ret=0
+
+      __debug "${state}"
+      case "${state}" in
+        name)
+          _ncd_repo_windows=($(ncd list:repo_window))
+
+          _describe -t repo_windows "Repo Windows" _ncd_repo_windows \
+            && ret=0
+
+          __ncd_repo_names && ret=0
+          ;;
+      esac
+      ;;
   esac
 
   return ret
 }
 
 __ncd_commands() {
-  local -a _ncd_commands
-  _ncd_commands=("ec2_ip" "dc")
+  local -a _ncd_commands=()
+  _ncd_commands+=("init" "off")
+  _ncd_commands+=("list")
+  _ncd_commands+=("ec2_ip" "dc" "repo")
+
 
   _describe -t ncd-commands "commands" _ncd_commands
 }

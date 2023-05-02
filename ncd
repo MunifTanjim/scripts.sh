@@ -162,6 +162,89 @@ ncd_dc() {
   nc-docker $@
 }
 
+ncd_list_container() {
+  cat "$(ncd workspace)/docker-compose.yml" | rq --input-yaml | jq -r '.services | keys | .[]'
+}
+
+ncd_list_repo() {
+  find "$(ncd workspace)" -maxdepth 2 -type d -name '.git'  | xargs dirname | xargs -n1 basename
+}
+
+ncd_list_repo_window() {
+  local -a windows=()
+
+  while IFS= read -r window; do
+    if test -n "${window}"; then
+      local window_id="$(echo "${window}" | awk '{ print $2 }' )" 
+      local tag="$(tmux show-option -w -t "${window_id}" -qv '@ncd_repo_window')"
+      if [[ -n "${tag}" ]]; then
+        windows+=("${tag}")
+      fi
+    fi
+  done <<< "$(tmux list-windows -F '#{window_active} #{window_id} #W')"
+
+  if (( ${#windows[@]} )); then
+    printf '%s\n' "${windows[@]}"
+  fi
+}
+
+ncd_list() {
+  local -r thing="${1:-}"
+  shift
+
+  if test -z "${thing}"; then
+    echo "missing thing"
+    exit 1
+  fi
+
+  local -r func="ncd_list_${thing}"
+
+  if ! function_exists "${func}"; then
+    echo "invalid thing: ${thing}"
+    exit 1
+  fi
+
+  $func $@
+}
+
+ncd_repo() {
+  local repo="${1:-}"
+  shift
+
+  if test -z "${repo}"; then
+    repo="$(ncd list:repo_window | fzf --exit-0)"
+  fi
+
+  if test -z "${repo}"; then
+    repo="$(ncd list:repo | fzf)"
+  fi
+
+  if test -z "${repo}"; then
+    echo "missing repo"
+    exit 1
+  fi
+
+  if ! test -d "$(ncd workspace)/${repo}"; then
+    echo "invalid repo"
+    exit 1
+  fi
+
+  local windows="$(tmux list-windows -F '#{window_active} #{window_id} #W')"
+
+  while IFS= read -r window; do
+    if test -n "${window}"; then
+      local window_id="$(echo "${window}" | awk '{ print $2 }' )" 
+      if [[ "${repo}" = "$(tmux show-option -w -t "${window_id}" -qv '@ncd_repo_window')" ]]; then
+        tmux select-window -t "${window_id}"
+        exit 0
+      fi
+    fi
+  done <<< "${windows}"
+
+  local window_id="$(tmux new-window -n ":${repo}" -c "$(ncd workspace)/${repo}" -P -F '#{window_id}')" "nvim"
+  tmux set-option -w -t "${window_id}" '@ncd_repo_window' "${repo}"
+}
+
 ncd() {
   local -r cmd="${1}"
   shift
