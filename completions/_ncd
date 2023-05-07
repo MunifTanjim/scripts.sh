@@ -122,6 +122,21 @@ __ncd_arguments() {
           ;;
       esac
       ;;
+    git)
+      local curcontext="${curcontext}" state
+
+      _arguments -C \
+        '1: :->command' \
+        && ret=0
+
+      case "${state}" in
+        command)
+          _ncd_git_commands=("rebase" "sync")
+          _describe -t commands "commands" _ncd_git_commands \
+            && ret=0
+          ;;
+      esac
+      ;;
     list)
       _ncd_list_things=("container" "repo" "repo_window")
       _describe -t things "things" _ncd_list_things \
@@ -153,8 +168,8 @@ __ncd_arguments() {
 
 __ncd_commands() {
   local -a _ncd_commands=()
-  _ncd_commands+=("init" "off")
-  _ncd_commands+=("list")
+  _ncd_commands+=("on" "off")
+  _ncd_commands+=("git" "list")
   _ncd_commands+=("ec2_ip" "dc" "repo")
 
 

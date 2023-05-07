@@ -51,7 +51,7 @@ ncd_ec2_ip() {
   exec aws-ec2-ip $@
 }
 
-ncd_init_aws() {
+ncd_on_aws() {
   echo "Checking AWS Login Status..."
 
   if ! aws sts get-caller-identity --query "Account" >/dev/null 2>&1; then
@@ -67,7 +67,7 @@ ncd_off_aws() {
   touch "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off"
 }
 
-ncd_init_docker() {
+ncd_on_docker() {
   echo "Checking Docker Desktop..."
 
   osascript >/dev/null <<EOL
@@ -82,12 +82,19 @@ ncd_off_docker() {
 
   osascript >/dev/null <<EOL
   if application "Docker Desktop" is running then
-    tell application "Docker Desktop" to quit
+    tell application "System Events" to tell process "Docker Desktop" 
+      tell menu bar item 1 of menu bar 2
+        click
+        tell menu 1
+          click menu item "Quit Docker Desktop"
+        end tell
+      end tell
+    end tell
   end if
 EOL
 }
 
-ncd_init_vpn() {
+ncd_on_vpn() {
   echo "Checking VPN Connection..."
 
   local -r openvpn_connect="/Applications/OpenVPN Connect/OpenVPN Connect.app/contents/MacOS/OpenVPN Connect"
@@ -143,10 +150,10 @@ ncd_off_vpn() {
 EOL
 }
 
-ncd_init() {
-  ncd_init_aws
-  ncd_init_vpn
-  ncd_init_docker
+ncd_on() {
+  ncd_on_aws
+  ncd_on_vpn
+  ncd_on_docker
 }
 
 ncd_off() {
@@ -243,6 +250,52 @@ ncd_repo() {
 
   local window_id="$(tmux new-window -n ":${repo}" -c "$(ncd workspace)/${repo}" -P -F '#{window_id}')" "nvim"
   tmux set-option -w -t "${window_id}" '@ncd_repo_window' "${repo}"
+}
+
+ncd_git_sync() {
+  local current_branch
+  current_branch="$(git branch --show-current)"
+
+  case "${current_branch}" in
+    master)
+      git pull newscred master 
+      git push
+      ;;
+    stable-master)
+      git pull stable-newscred master
+      git push -u stable-origin stable-master:master
+      ;;
+  esac
+}
+
+ncd_git_rebase() {
+  local current_branch
+  current_branch="$(git branch --show-current)"
+
+  case "${current_branch}" in
+    master|stable-master)
+      ;;
+    sync-*)
+      git rebase -i stable-master
+      ;;
+    *)
+      git rebase -i master
+      ;;
+  esac
+}
+
+ncd_git() {
+  local -r cmd="${1}"
+  shift
+
+  local -r func="ncd_git_${cmd}"
+
+  if ! function_exists "${func}"; then
+    echo "invalid thing: ${thing}"
+    exit 1
+  fi
+
+  $func $@
 }
 
 ncd() {
