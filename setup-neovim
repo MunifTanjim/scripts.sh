@@ -21,16 +21,16 @@ while (( "$#" )); do
   case "$1" in
     --appimage)
       setup_method="appimage"
-      ;;
+      shift;;
     --brew)
       setup_method="brew"
-      ;;
+      shift;;
     --source)
       setup_method="source"
-      ;;
+      shift;;
     --clean)
       source_clean="true"
-      ;;
+      shift;;
   esac
 done
 
