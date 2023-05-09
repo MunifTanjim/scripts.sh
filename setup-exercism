@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+declare -r name="exercism"
+declare -r repo="exercism/cli"
+
+move() {
+  local -r src="$1"
+  local -r dest="$2"
+  local -r dest_dir="$(dirname "$dest")"
+  if [ ! -d "${dest_dir}" ]; then
+    mkdir -p "${dest_dir}"
+  fi
+  mv "${src}" "${dest}"
+}
+
+setup_for_darwin() {
+  echo 'brew "exercism"' | brew bundle --no-lock --file=-
+}
+
+setup_for_debian() {
+  local -r prefix_path="${HOME}/.local"
+
+  local temp_dir
+  temp_dir="$(mktemp --directory /tmp/${name}--XXXXXXXXX)"
+
+  cd "${temp_dir}"
+
+  local pattern="*linux-x86_64.tar.gz"
+  if test "$(uname -m)" = "aarch64"; then
+    echo "unsupported arch"
+    exit 1
+  fi
+
+  echo "Downloading archive..."
+  gh release download --repo "${repo}" --pattern "${pattern}"
+
+  echo "Extracting archive..."
+  tar -xvzf "${temp_dir}"/*.tar.gz
+
+  echo "Setting up: ${name}"
+  move ./${name} "${prefix_path}/bin/${name}"
+
+  echo "Cleaning up..."
+  rm -rf "${temp_dir}"
+
+  echo "Done!"
+}
+
+case "${OSTYPE}" in
+  darwin*)
+    setup_for_darwin;;
+  linux*)
+    setup_for_debian;;
+  *)
+    echo "Unknown OS!"
+    exit 1;;
+esac
