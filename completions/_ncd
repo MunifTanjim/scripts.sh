@@ -131,15 +131,20 @@ __ncd_arguments() {
 
       case "${state}" in
         command)
-          _ncd_git_commands=("rebase" "sync")
+          _ncd_git_commands=("pr-sync" "rebase" "sync")
           _describe -t commands "commands" _ncd_git_commands \
             && ret=0
           ;;
       esac
       ;;
     list)
-      _ncd_list_things=("container" "repo" "repo_window")
+      _ncd_list_things=("container" "repo" "repo-window")
       _describe -t things "things" _ncd_list_things \
+        && ret=0
+      ;;
+    py)
+      _ncd_py_commands=("venv-init" "try-install")
+      _describe -t commands "commands" _ncd_py_commands \
         && ret=0
       ;;
     repo)
@@ -152,7 +157,7 @@ __ncd_arguments() {
       __debug "${state}"
       case "${state}" in
         name)
-          _ncd_repo_windows=($(ncd list:repo_window))
+          _ncd_repo_windows=($(ncd list:repo-window))
 
           _describe -t repo_windows "Repo Windows" _ncd_repo_windows \
             && ret=0
@@ -170,8 +175,9 @@ __ncd_commands() {
   local -a _ncd_commands=()
   _ncd_commands+=("on" "off")
   _ncd_commands+=("git" "list")
-  _ncd_commands+=("ec2_ip" "dc" "repo")
-
+  _ncd_commands+=("dc" "repo")
+  _ncd_commands+=("py")
+  _ncd_commands+=("workspace")
 
   _describe -t ncd-commands "commands" _ncd_commands
 }

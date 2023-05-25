@@ -1,34 +1,37 @@
 #!/usr/bin/env bash
 
-command_exists() {
-  type "${1}" >/dev/null 2>&1
-}
+set -euo pipefail
 
-function_exists() {
-  declare -F "${1}" >/dev/null
-}
-
-ensure_command() {
-  if ! command_exists "${1}"; then
-    echo "command not found: ${1}"
+assert_command() {
+  if ! type "${1}" >/dev/null 2>&1; then
+    if [[ -z "${2}" ]]; then
+      echo "command not found: ${1}"
+    else
+      echo "${2}"
+    fi
     exit 1
   fi
 }
 
-ensure_file() {
-  if ! [[ -e "${1}" ]]; then
-    echo "file not found: ${1}"
+assert_dir() {
+  if ! [[ -d "${1}" ]]; then
+    echo "${2}"
     exit 1
   fi
 }
 
-config() {
-  local -r query="${1}"
-  if [[ -z "${ncd_config}" ]]; then
-    ensure_file ~/.newscred.yaml
-    declare -g ncd_config=$(cat ~/.newscred.yaml | rq --input-yaml | jq -r '.ncd')
+assert_val() {
+  if [[ -z "${1}" ]]; then
+    echo "${2}"
+    exit 1
   fi
-  echo $ncd_config | jq -r "${query}"
+}
+
+assert_func() {
+  if ! declare -F "${1}" >/dev/null; then
+    echo "${2}"
+    exit 1
+  fi
 }
 
 ncd_workspace() {
@@ -37,18 +40,66 @@ ncd_workspace() {
   echo "${dir}"
 }
 
+__pyenv_init() {
+  eval "$(pyenv init -)"
+  eval "$(pyenv virtualenv-init -)"
+}
+
+__pyenv_list_versions() {
+  pyenv versions --bare --skip-envs --skip-aliases
+}
+
+__pyenv_virtualenv_exists() {
+  pyenv virtualenvs | grep -q " ${1} "
+}
+
+__pyenv_is_version_installed() {
+  __pyenv_list_versions | grep -q "${1}"
+}
+
+__pyenv_virtualenv_current() {
+  pyenv virtualenvs | grep "^* " | awk '{ print $2 }'
+}
+
+__ncd_is_inside_workspace_repo() {
+  [[ "${PWD}" = "$(ncd workspace)"/* ]]
+}
+
+__ncd_assert_inside_workspace_repo() {
+  if ! __ncd_is_inside_workspace_repo; then
+    echo "not inside workspace repo"
+    exit 1
+  fi
+}
+
+__ncd_assert_py_repo_venv() {
+  local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
+  local -r venv_name="nc-${curr_repo}"
+  if [[ "$(__pyenv_virtualenv_current)" != "${venv_name}" ]]; then
+    echo "virtualenv not active: ${venv_name}"
+    exit 1
+  fi
+}
+
+__ncd_cmd() {
+  local -r cmd="${1}"
+  shift
+
+  local -r subcmd="${1:-}"
+  assert_val "${subcmd}" "missing param"
+  shift
+
+  local -r func="ncd_${cmd}_${subcmd}"
+  assert_func "${func}" "invalid param: ${subcmd}"
+
+  $func $@
+}
+
+# ncd completion
 ncd_completion() {
   local dir="$(realpath "${BASH_SOURCE[0]}")"
   dir="${dir%/*}"
   cat "${dir}/completions/_ncd"
-}
-
-ncd_config() {
-  config $1
-}
-
-ncd_ec2_ip() {
-  exec aws-ec2-ip $@
 }
 
 ncd_on_aws() {
@@ -150,34 +201,47 @@ ncd_off_vpn() {
 EOL
 }
 
+ncd_off_repo-window() {
+  __ncd_untag_current_repo_window
+}
+
+# ncd on
 ncd_on() {
   ncd_on_aws
   ncd_on_vpn
   ncd_on_docker
 }
 
+# ncd off
 ncd_off() {
   ncd_off_aws
   ncd_off_vpn
   ncd_off_docker
+  ncd_off_repo-window
+  if __ncd_is_inside_workspace_repo; then
+    cd "${HOME}"
+  fi
 }
 
+# ncd dc
 ncd_dc() {
-  eval "$(pyenv init -)"
-  eval "$(pyenv virtualenv-init -)"
+  __pyenv_init
   pyenv activate localdev
-  nc-docker $@
+  exec nc-docker $@
 }
 
+# ncd list container
 ncd_list_container() {
   cat "$(ncd workspace)/docker-compose.yml" | rq --input-yaml | jq -r '.services | keys | .[]'
 }
 
+# ncd list repo
 ncd_list_repo() {
   find "$(ncd workspace)" -maxdepth 2 -type d -name '.git'  | xargs dirname | xargs -n1 basename
 }
 
-ncd_list_repo_window() {
+# ncd list repo-window
+ncd_list_repo-window() {
   local -a windows=()
 
   while IFS= read -r window; do
@@ -195,49 +259,48 @@ ncd_list_repo_window() {
   fi
 }
 
+# ncd list
 ncd_list() {
-  local -r thing="${1:-}"
-  shift
-
-  if test -z "${thing}"; then
-    echo "missing thing"
-    exit 1
-  fi
-
-  local -r func="ncd_list_${thing}"
-
-  if ! function_exists "${func}"; then
-    echo "invalid thing: ${thing}"
-    exit 1
-  fi
-
-  $func $@
+  __ncd_cmd "list" $@
 }
 
+__ncd_untag_current_repo_window() {
+  if test -n "$(tmux show-option -w -qv '@ncd_repo_window')"; then
+    tmux set-option -w -u '@ncd_repo_window'
+    tmux set-option -w automatic-rename on
+  fi
+}
+
+# ncd repo [repo-name]
 ncd_repo() {
   local repo="${1:-}"
-  shift
+  [[ -n "${repo}" ]] && shift
 
-  if test -z "${repo}"; then
-    repo="$(ncd list:repo_window | fzf --exit-0)"
+  if [[ -z "${repo}" ]]; then
+    if __ncd_is_inside_workspace_repo; then
+      # already inside workspace repo
+      local -r curr_tag="$(tmux show-option -w -qv '@ncd_repo_window')"
+      local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
+      if [[ -z "${curr_tag}" ]] || [[ "${curr_tag}" != "${curr_repo}" ]]; then
+        # current window is untagged or tagged for a different repo
+        __ncd_untag_current_repo_window
+        repo="${curr_repo}"
+      fi
+    fi
   fi
 
-  if test -z "${repo}"; then
-    repo="$(ncd list:repo | fzf)"
+  if [[ -z "${repo}" ]]; then
+    repo="$(ncd list:repo-window | fzf --exit-0)" || true
   fi
 
-  if test -z "${repo}"; then
-    echo "missing repo"
-    exit 1
+  if [[ -z "${repo}" ]]; then
+    repo="$(ncd list:repo | fzf)" || true
   fi
 
-  if ! test -d "$(ncd workspace)/${repo}"; then
-    echo "invalid repo"
-    exit 1
-  fi
+  assert_val "${repo}" "missing repo"
+  assert_dir "$(ncd workspace)/${repo}" "invalid repo"
 
-  local windows="$(tmux list-windows -F '#{window_active} #{window_id} #W')"
-
+  # if already tagged, jump to window
   while IFS= read -r window; do
     if test -n "${window}"; then
       local window_id="$(echo "${window}" | awk '{ print $2 }' )" 
@@ -246,12 +309,105 @@ ncd_repo() {
         exit 0
       fi
     fi
-  done <<< "${windows}"
+  done <<< "$(tmux list-windows -F '#{window_active} #{window_id} #W')"
 
-  local window_id="$(tmux new-window -n ":${repo}" -c "$(ncd workspace)/${repo}" -P -F '#{window_id}')" "nvim"
-  tmux set-option -w -t "${window_id}" '@ncd_repo_window' "${repo}"
+  local -r repo_path="$(ncd workspace)/${repo}"
+  local -r window_name=":${repo}"
+
+  if [[ -z "$(tmux show-option -w -qv '@ncd_repo_window')" ]] && __ncd_is_inside_workspace_repo; then
+    # current window is untagged and already inside workspace rpeo
+    if [[ "${PWD}" != "${repo_path}" ]]; then
+      tmux send-keys "cd ${repo_path} && clear" Enter
+    fi
+    tmux rename-window "${window_name}"
+    tmux set-option -w '@ncd_repo_window' "${repo}"
+  else
+    # current window is already tagged or outside workspace
+    local window_id="$(tmux new-window -n "${window_name}" -c "${repo_path}" -P -F '#{window_id}')"
+    tmux set-option -w -t "${window_id}" '@ncd_repo_window' "${repo}"
+  fi
 }
 
+# ncd git pr-sync
+ncd_git_pr-sync() {
+  local -r pr_link="${1:-}"
+  assert_val "${pr_link}" "missing pr link"
+  shift
+
+  if ! [[ "${pr_link}" =~ ^https://github.com/newscred/cmp-client/pull/.* ]]; then
+    echo "invalid pr link: ${pr_link}"
+    exit 1
+  fi
+
+  local -r pr_number="${pr_link##*/}"
+  local -r sync_pr_branch="sync-pr-${pr_number}"
+  local -r current_branch="$(git branch --show-current)"
+
+  if [[ "${current_branch}" != "${sync_pr_branch}" ]]; then
+    local -r jq_query=".data.repository.defaultBranchRef.target.history.nodes | map(select(.associatedPullRequests.nodes[0].number == ${pr_number})) | reverse | map({ commit: .oid, message: .message })"
+    local -r commits_blob="$(gh api graphql -f query='
+    {
+      repository(name: "cmp-client", owner: "newscred") {
+        defaultBranchRef {
+          name
+          target {
+            ... on Commit {
+              id
+              history(first: 100) {
+                nodes {
+                  message
+                  oid
+                  associatedPullRequests(first: 1) {
+                    nodes {
+                      title
+                      permalink
+                      number
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }' --jq "${jq_query}")"
+
+    echo "Switching to cmp-client:master"
+    git checkout master
+    echo
+    echo "Fetching latest commits..."
+    ncd git sync
+    echo
+
+    echo "Switching to cmp-client-stable:master"
+    git checkout stable-master
+    echo
+    echo "Fetching latest commits..."
+    ncd git sync
+    echo
+
+    echo "Creating branch: ${sync_pr_branch}"
+    git checkout -B "${sync_pr_branch}"
+    echo
+
+    echo "Cherry-Picking Commits:"
+    echo "${commits_blob}" | jq  -r '.[] | "* " + .commit[0:10] + " " + .message'
+    echo
+    git cherry-pick $(echo "${commits_blob}" | jq -r '.[] | .commit' | xargs)
+    echo
+  fi
+
+  echo "Pushing branch: ${sync_pr_branch}"
+  git push -f -u stable-origin "${sync_pr_branch}"
+
+  echo "Creating PR..."
+  local -r pr_blob="$(gh pr view "${pr_link}" --json number,title)"
+  local -r sync_pr_title="sync(#${pr_number}) $(echo "${pr_blob}" | jq -r '.title')"
+  gh --repo newscred/cmp-client-stable pr create --title "${sync_pr_title}"
+  echo
+}
+
+# ncd git sync
 ncd_git_sync() {
   local current_branch
   current_branch="$(git branch --show-current)"
@@ -262,18 +418,24 @@ ncd_git_sync() {
       git push
       ;;
     stable-master)
-      git pull stable-newscred master
-      git push -u stable-origin stable-master:master
+      git fetch stable-newscred master
+      git reset --hard stable-newscred/master
+      git push -f -u stable-origin stable-master:master
+      ;;
+    *)
+      echo "current on non-default branch: ${current_branch}"
       ;;
   esac
 }
 
+# ncd git rebase
 ncd_git_rebase() {
   local current_branch
   current_branch="$(git branch --show-current)"
 
   case "${current_branch}" in
     master|stable-master)
+      echo "current on default branch: ${current_branch}"
       ;;
     sync-*)
       git rebase -i stable-master
@@ -284,42 +446,96 @@ ncd_git_rebase() {
   esac
 }
 
+# ncd git
 ncd_git() {
-  local -r cmd="${1}"
-  shift
+  __ncd_assert_inside_workspace_repo
+  __ncd_cmd "git" $@
+}
 
-  local -r func="ncd_git_${cmd}"
-
-  if ! function_exists "${func}"; then
-    echo "invalid thing: ${thing}"
+# ncd py venv-init
+ncd_py_venv-init() {
+  if ! __ncd_is_inside_workspace_repo; then
+    echo "not inside workspace repo"
     exit 1
   fi
 
-  $func $@
+  local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
+  if [[ "${PWD}" != "$(ncd workspace)/${curr_repo}" ]]; then
+    echo "not inside workspace repo root"
+    exit 1
+  fi
+
+  local -r venv_name="nc-${curr_repo}"
+
+  AUTOENV_FILE_ENTER="${AUTOENV_FILE_ENTER:-.autoenv.in.zsh}"
+  if ! [[ -f "${AUTOENV_FILE_ENTER}" ]]; then
+    touch "${AUTOENV_FILE_ENTER}"
+  fi
+  if ! cat "${AUTOENV_FILE_ENTER}" | grep -q "^export PYENV_VERSION"; then
+    echo "export PYENV_VERSION=\"${venv_name}\"" >> "${AUTOENV_FILE_ENTER}"
+  fi
+  source "${AUTOENV_FILE_ENTER}"
+
+  AUTOENV_FILE_LEAVE="${AUTOENV_FILE_LEAVE:-.autoenv.out.zsh}"
+  if ! [[ -f "${AUTOENV_FILE_LEAVE}" ]]; then
+    touch "${AUTOENV_FILE_LEAVE}"
+  fi
+  if ! cat "${AUTOENV_FILE_LEAVE}" | grep -q "^unset PYENV_VERSION"; then
+    echo "unset PYENV_VERSION" >> "${AUTOENV_FILE_LEAVE}"
+  fi
+
+  __pyenv_init
+
+  if ! __pyenv_virtualenv_exists "${venv_name}"; then
+    local python_version=""
+    if [[ -f .python-version ]]; then
+      python_version="$(cat .python-version | fzf --select-1)"
+    fi
+    python_version="$(__pyenv_list_versions | fzf --query "${python_version}" --select-1)" || true
+
+    read -e -p "(${venv_name}) Python Version: " -i "${python_version}" python_version
+    if [[ -z "${python_version}" ]]; then
+      exit 1
+    fi
+
+    if ! __pyenv_is_version_installed "${python_version}"; then
+      pyenv install "${python_version}"
+    fi
+
+    pyenv virtualenv "${python_version}" "${venv_name}" 
+  fi
+}
+
+# ncd py try-install
+ncd_py_try-install() {
+  __pyenv_init
+  __ncd_assert_py_repo_venv
+
+  if [[ -f requirements-explicit.txt ]]; then
+    cat requirements-explicit.txt | grep -v "^$" | grep -v "^#" | xargs -n1 pip install
+  fi
+}
+
+# ncd py
+ncd_py() {
+  __ncd_assert_inside_workspace_repo
+  __ncd_cmd "py" $@
 }
 
 ncd() {
-  local -r cmd="${1}"
+  local -r cmd="${1:-}"
+  assert_val "${cmd}" "missing command"
   shift
 
-  if [[ -z "${cmd}" ]]; then
-    echo "no command given!"
-    exit 1
-  fi
-
   local -r func="ncd_${cmd//:/_}"
-
-  if ! function_exists "${func}"; then
-    echo "invalid command: ${cmd}"
-    exit 1
-  fi
+  assert_func "${func}" "invalid command: ${cmd}"
 
   $func $@
 }
 
-ensure_command aws
-ensure_command fzf
-ensure_command jq
-ensure_command rq
+assert_command aws
+assert_command fzf
+assert_command jq
+assert_command rq
 
 ncd $@
