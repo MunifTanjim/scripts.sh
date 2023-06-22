@@ -7,4 +7,8 @@ if test -z "${commit}"; then
   exit 1
 fi
 
-exec git commit --fixup="${commit}"
+if [[ "${commit}" = "$(git rev-parse HEAD | head -c 7)" ]]; then
+  exec git commit --amend
+else
+  exec git commit --fixup="${commit}"
+fi
