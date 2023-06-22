@@ -131,7 +131,7 @@ __ncd_arguments() {
 
       case "${state}" in
         command)
-          _ncd_git_commands=("pr-sync" "rebase" "sync")
+          _ncd_git_commands=("pr-sync" "prepare-remote" "rebase" "sync")
           _describe -t commands "commands" _ncd_git_commands \
             && ret=0
           ;;

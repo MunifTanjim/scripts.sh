@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+declare GITHUB_USERNAME="MunifTanjim"
+
 assert_command() {
   if ! type "${1}" >/dev/null 2>&1; then
     if [[ -z "${2}" ]]; then
@@ -50,11 +52,13 @@ __pyenv_list_versions() {
 }
 
 __pyenv_virtualenv_exists() {
-  pyenv virtualenvs | grep -q " ${1} "
+  local -r virtualenvs="$(pyenv virtualenvs --bare)"
+  echo "${virtualenvs}" | grep -q "${1}"
 }
 
 __pyenv_is_version_installed() {
-  __pyenv_list_versions | grep -q "${1}"
+  local -r versions="$(__pyenv_list_versions)"
+  echo "${versions}" | grep -q "${1}"
 }
 
 __pyenv_virtualenv_current() {
@@ -100,6 +104,31 @@ ncd_completion() {
   local dir="$(realpath "${BASH_SOURCE[0]}")"
   dir="${dir%/*}"
   cat "${dir}/completions/_ncd"
+}
+
+# ncd aws:codeartifact-auth-token
+ncd_aws_codeartifact-auth-token() {
+  if [[ ! -e "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off" && \
+        ! ( -f "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token" && \
+            -n "$(find "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token" -mmin -$(( 10 * 60 )))" ) ]]; then
+    if aws sts get-caller-identity --query "Account" >/dev/null 2>&1; then
+      local -r domain_owner="${1:-}"
+      assert_val "${domain_owner}" "missing param: domain_owner"
+
+      AWS_CODEARTIFACT_AUTH_TOKEN="$(aws codeartifact get-authorization-token \
+        --duration-seconds "$(( 12 * 60 * 60 ))" \
+        --domain "newscred" \
+        --domain-owner "${domain_owner}" \
+        --query authorizationToken \
+        --output text)"
+
+      if test -n "${AWS_CODEARTIFACT_AUTH_TOKEN}"; then
+        echo "${AWS_CODEARTIFACT_AUTH_TOKEN}" > "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token"
+      fi
+    fi
+  fi
+
+  cat "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token"
 }
 
 ncd_on_aws() {
@@ -207,8 +236,8 @@ ncd_off_repo-window() {
 
 # ncd on
 ncd_on() {
-  ncd_on_aws
   ncd_on_vpn
+  ncd_on_aws
   ncd_on_docker
 }
 
@@ -343,17 +372,23 @@ ncd_git_pr-sync() {
   local -r sync_pr_branch="sync-pr-${pr_number}"
   local -r current_branch="$(git branch --show-current)"
 
+  local -r pr_blob="$(gh pr view "${pr_link}" --json mergedAt,number,title)"
+
   if [[ "${current_branch}" != "${sync_pr_branch}" ]]; then
+    local -r merged_at="$(echo "${pr_blob}" | jq -r '.mergedAt')"
+    local -r since="$(date --date="${merged_at} -40 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
+    local -r until="$(date --date="${merged_at}  +5 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
+
     local -r jq_query=".data.repository.defaultBranchRef.target.history.nodes | map(select(.associatedPullRequests.nodes[0].number == ${pr_number})) | reverse | map({ commit: .oid, message: .message })"
-    local -r commits_blob="$(gh api graphql -f query='
-    {
+    local -r commits_blob="$(gh api graphql --paginate -f query='
+    query ($since: GitTimestamp!, $until: GitTimestamp!, $endCursor: String) {
       repository(name: "cmp-client", owner: "newscred") {
         defaultBranchRef {
           name
           target {
             ... on Commit {
               id
-              history(first: 100) {
+              history(first: 100, after: $endCursor, since: $since, until: $until) {
                 nodes {
                   message
                   oid
@@ -365,12 +400,16 @@ ncd_git_pr-sync() {
                     }
                   }
                 }
+                pageInfo {
+                  endCursor
+                  hasNextPage
+                }
               }
             }
           }
         }
       }
-    }' --jq "${jq_query}")"
+    }' -F since="${since}" -F until="${until}" --jq "${jq_query}")"
 
     echo "Switching to cmp-client:master"
     git checkout master
@@ -401,7 +440,6 @@ ncd_git_pr-sync() {
   git push -f -u stable-origin "${sync_pr_branch}"
 
   echo "Creating PR..."
-  local -r pr_blob="$(gh pr view "${pr_link}" --json number,title)"
   local -r sync_pr_title="sync(#${pr_number}) $(echo "${pr_blob}" | jq -r '.title')"
   gh --repo newscred/cmp-client-stable pr create --title "${sync_pr_title}"
   echo
@@ -444,6 +482,34 @@ ncd_git_rebase() {
       git rebase -i master
       ;;
   esac
+}
+
+# ncd git prepare-remote
+ncd_git_prepare-remote() {
+  local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
+
+  local -A remote_url_map
+  remote_url_map[newscred]="https://github.com/newscred/${curr_repo}.git"
+  remote_url_map[origin]="https://github.com/${GITHUB_USERNAME}/${curr_repo}.git"
+
+  for remote in "newscred" "origin"; do
+    if ! git remote show | grep -q "${remote}"; then
+      git remote add "${remote}" "${remote_url_map[${remote}]}"
+    fi
+    printf "%15s %s\n" "${remote}" "$(git remote get-url ${remote})"
+  done
+
+  if [[ "${curr_repo}" = "cmp-client" ]]; then
+    remote_url_map[stable-newscred]="https://github.com/newscred/${curr_repo}-stable.git"
+    remote_url_map[stable-origin]="https://github.com/${GITHUB_USERNAME}/${curr_repo}-stable.git"
+
+    for remote in "stable-newscred" "stable-origin"; do
+      if ! git remote show | grep -q "${remote}"; then
+        git remote add "${remote}" "${remote_url_map[${remote}]}"
+      fi
+      printf "%15s %s\n" "${remote}" "$(git remote get-url ${remote})"
+    done
+  fi
 }
 
 # ncd git
@@ -506,13 +572,28 @@ ncd_py_venv-init() {
   fi
 }
 
+__py_list_requirements() {
+  local -r filename="${1}"
+  cat "${filename}" | sed 's/#.*//' | grep -v "^$" | grep -v "^#" | grep "^.*==.*"
+}
+
 # ncd py try-install
 ncd_py_try-install() {
   __pyenv_init
   __ncd_assert_py_repo_venv
 
   if [[ -f requirements-explicit.txt ]]; then
-    cat requirements-explicit.txt | grep -v "^$" | grep -v "^#" | xargs -n1 pip install
+    __py_list_requirements requirements-explicit.txt | xargs -n1 pip install
+    exit 0
+  fi
+
+  if [[ -f requirements.in ]] && [[ -f requirements.txt ]]; then
+    __py_list_requirements requirements.txt | xargs -n1 pip install
+    exit 0
+  fi
+
+  if [[ -f requirements-common.txt ]]; then
+    __py_list_requirements requirements-common.txt | xargs -n1 pip install
   fi
 }
 
