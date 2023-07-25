@@ -34,6 +34,7 @@ setup_for_debian() {
   ln -nsf ${app_path}/bin/kitty "${bin_dir}"
 
   echo "Installing manual pages..."
+  mkdir -p ~/.local/share/man/man{1,5}
   gzip -c ${app_path}/share/man/man1/kitty.1 | tee ~/.local/share/man/man1/kitty.1.gz > /dev/null
   gzip -c ${app_path}/share/man/man5/kitty.conf.5 | tee ~/.local/share/man/man5/kitty.conf.5.gz > /dev/null
 
