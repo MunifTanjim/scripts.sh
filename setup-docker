@@ -25,7 +25,7 @@ esac
 
 declare -r codename="$(lsb_release -cs)"
 
-sudo add-apt-repository "deb [arch=${arch}] https://download.docker.com/linux/ubuntu ${codename} stable"
+sudo add-apt-repository --yes "deb [arch=${arch}] https://download.docker.com/linux/ubuntu ${codename} stable"
 
 echo "Installing Docker..."
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io
