@@ -2,6 +2,7 @@
 // vim: set filetype=javascript :
 
 import { URL } from "url";
+import { GitHub } from "./zx/github.mjs";
 import { GitLab } from "./zx/gitlab.mjs";
 import { JetBrainsSpace } from "./zx/jetbrains-space.mjs";
 
@@ -11,6 +12,27 @@ const ask_bool = async (prompt) => {
   return await question(`${prompt} [y/N] `).then((answer) => {
     return answer.toLowerCase() == "y";
   });
+};
+
+const read_file = async (filename) => {
+  return await fs.readFile(filename, { encoding: "utf8" });
+};
+
+const generate_ssh_keypair = async (comment = "git-mirror") => {
+  const filename = "/tmp/git-mirror-key";
+
+  $`rm -f ${filename} ${filename}.pub`;
+
+  await $`ssh-keygen -t ed25519 -C ${comment} -N '' -f ${filename}`;
+
+  const [privateKey, publicKey] = await Promise.all([
+    read_file(filename),
+    read_file(`${filename}.pub`),
+  ]);
+
+  $`rm -f ${filename} ${filename}.pub`;
+
+  return { privateKey, publicKey };
 };
 
 const allowed_default_branches = ["main", "master"];
@@ -109,24 +131,33 @@ async function init_gitlab(repo) {
     wiki_access_level: "disabled",
   });
 
-  async function create_mirror() {
+  async function create_mirror({ try_import = true, is_public = null } = {}) {
     gitlab.log.info(`Creating project: ${repo.project}...`);
 
-    const isPublic = await ask_bool("Make project public?");
+    if (typeof is_public !== "boolean") {
+      is_public = await ask_bool("Make project public?");
+    }
+
+    const import_url = try_import ? repo.remote.origin.url.href : null;
 
     const res = await gitlab.api("POST /projects", {
       body: {
         name: repo.name,
-        import_url: repo.remote.origin.url.href,
-        visibility: isPublic ? "public" : "private",
+        import_url,
+        visibility: is_public ? "public" : "private",
         ...get_mirror_project_settings(repo),
       },
     });
 
     if (res.ok) {
       gitlab.log.info(`Created project: ${repo.project}...`);
+    } else if (try_import && res.status === 422) {
+      gitlab.log.error(`Failed to create project: ${repo.project}...`);
+      gitlab.log.error(`  Reason:  ${res.data.message}`);
+      gitlab.log.info(`Trying again w/o initial import...`);
+      return create_mirror({ try_import: false, is_public });
     } else {
-      gitlab.log.info(`Failed to create project: ${repo.project}...`);
+      gitlab.log.error(`Failed to create project: ${repo.project}...`);
       throw res;
     }
   }
@@ -187,34 +218,151 @@ async function init_jetbrains_space(repo) {
   const project_key = "key:PERSONAL";
   const base_url = `/projects/${project_key}/repositories/${repo.name}`;
 
+  async function get_mirror_repository_settings_mirror_key(mirror) {
+    const body = {
+      remote: {
+        url: mirror.url,
+      },
+    };
+
+    let res = await space.api(
+      `POST /projects/${project_key}/repositories/test-connection`,
+      { body }
+    );
+
+    if (!res.ok) {
+      throw res;
+    }
+
+    if (res.data.success) {
+      space.log.info(`Successfully connected to remote ${body.remote.url}`);
+      return null;
+    }
+
+    space.log.warn(res.data.reason.split("\n")[0]);
+
+    const github_deploy_key_title = "muniftanjim.jetbrains.space:mirror";
+
+    const github = new GitHub({ id: "git-mirror" });
+    res = await github.api("/repos/{owner}/{repo}/keys", {
+      jq: `.[] | select(.title=="${github_deploy_key_title}")`,
+    });
+
+    if (!res.ok) {
+      throw res;
+    }
+
+    if (res.data) {
+      res = await github.api(
+        `DELETE /repos/{owner}/{repo}/keys/${res.data.id}`
+      );
+
+      if (!res.ok) {
+        github.log.info(
+          `Failed to remove old deploy key (${github_deploy_key_title})`
+        );
+        throw res;
+      }
+
+      github.log.info(`Removed old deploy key (${github_deploy_key_title})`);
+    }
+
+    const keypair = await generate_ssh_keypair(github_deploy_key_title);
+
+    res = await github.api("POST /repos/{owner}/{repo}/keys", {
+      fields: {
+        title: github_deploy_key_title,
+        key: keypair.publicKey,
+        read_only: true,
+      },
+    });
+
+    if (!res.ok) {
+      github.log.error(`Failed to add deploy key (${github_deploy_key_title})`);
+      throw res;
+    }
+
+    github.log.info(`Added deploy key (${github_deploy_key_title})`);
+
+    body.remote.auth = {
+      className: "RemoteRepositoryAuth.SSH",
+      privateKey: keypair.privateKey,
+      passphrase: "",
+    };
+
+    res = await space.api(
+      `POST /projects/${project_key}/repositories/test-connection`,
+      { body }
+    );
+
+    if (res.ok) {
+      space.log.info(
+        `Successfully connected to remote ${body.remote.url} using deploy key`
+      );
+      return keypair.privateKey;
+    }
+
+    space.log.error(`Failed to connect to remote: ${body.remote.url}`);
+    throw res;
+  }
+
   const repo_description = `Mirroring: ${repo.remote.origin.url.href}`;
-  const get_mirror_repository_settings = () => ({
-    settings: {
+  const get_mirror_repository_settings = async () => {
+    const settings = {
       mirror: {
         version: "",
         url: `https://github.com/${repo.project}.git`,
         detachHEAD: false,
         fetchPeriodically: true,
         fetchBeforeGitCall: true,
+        key: null,
+        mirrorPullRequest: false,
       },
-    },
-  });
+    };
+
+    settings.mirror.key = await get_mirror_repository_settings_mirror_key(
+      settings.mirror
+    );
+
+    if (settings.mirror.key) {
+      settings.mirror.url = `git@github.com:${repo.project}.git`;
+      settings.mirror.useAuthKey = true;
+      settings.mirror.keyPassphrase = "";
+    } else {
+      settings.mirror.url = `https://github.com/${repo.project}.git`;
+      settings.mirror.useAuthKey = null;
+      settings.mirror.keyPassphrase = null;
+    }
+
+    return { settings };
+  };
 
   async function create_mirror() {
     space.log.info(`Creating project: ${repo.name}...`);
 
-    const { settings } = get_mirror_repository_settings(repo);
-    const res = await space.api(`POST ${base_url}/migrate`, {
-      body: {
-        description: repo_description,
-        remote: {
-          url: settings.mirror.url,
-        },
-        mirror: {
-          syncPeriodically: settings.mirror.fetchPeriodically,
-          syncOnFetch: settings.mirror.fetchBeforeGitCall,
-        },
+    const { settings } = await get_mirror_repository_settings(repo);
+
+    const info = {
+      description: repo_description,
+      remote: {
+        url: settings.mirror.url,
+        auth: settings.mirror.useAuthKey
+          ? {
+              className: "RemoteRepositoryAuth.SSH",
+              privateKey: settings.mirror.key,
+              passphrase: settings.mirror.keyPassphrase,
+            }
+          : null,
       },
+      mirror: {
+        syncPeriodically: settings.mirror.fetchPeriodically,
+        syncOnFetch: settings.mirror.fetchBeforeGitCall,
+        mirrorPullRequest: settings.mirror.mirrorPullRequest,
+      },
+    };
+
+    const res = await space.api(`POST ${base_url}/migrate`, {
+      body: info,
     });
 
     if (res.ok) {
@@ -227,7 +375,7 @@ async function init_jetbrains_space(repo) {
 
   async function update_mirror() {
     let res = await space.api(`POST ${base_url}/settings`, {
-      body: get_mirror_repository_settings(repo),
+      body: await get_mirror_repository_settings(),
     });
 
     if (!res.ok) {

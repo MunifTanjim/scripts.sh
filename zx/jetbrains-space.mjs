@@ -25,7 +25,7 @@ export class JetBrainsSpace {
     this.#cache = new CacheFile(`jetbrains-space/${site}---${this.id}`);
   }
 
-  log = new Logger(chalk.bgBlueBright.black.bold.dim(" space "));
+  log = new Logger(chalk.bgBlue.black.bold(" space "));
 
   #verifyToken = async () => {
     this.log.info("Checking Token validity...");

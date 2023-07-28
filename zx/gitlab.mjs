@@ -13,7 +13,7 @@ export class GitLab {
     this.#cache = new CacheFile(`gitlab/${this.id}`);
   }
 
-  log = new Logger(chalk.bgYellowBright.black.bold.dim(" gitlab "));
+  log = new Logger(chalk.bgYellowBright.black.bold(" gitlab "));
 
   #verifyToken = async () => {
     this.log.info("Checking Token validity...");
