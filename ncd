@@ -36,6 +36,11 @@ assert_func() {
   fi
 }
 
+ncd_config() {
+  local blob="$(cat ~/.newscred.yaml | rq --input-yaml | jq -r '.ncd')"
+  echo "${blob}" | jq -r ".${1:-""}"
+}
+
 ncd_workspace() {
   local dir="$(cat ~/.newscred.yaml | rq --input-yaml | jq -r '.workspace')"
   dir="${dir/#\~/${HOME}}"
@@ -112,13 +117,10 @@ ncd_aws_codeartifact-auth-token() {
         ! ( -f "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token" && \
             -n "$(find "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token" -mmin -$(( 10 * 60 )))" ) ]]; then
     if aws sts get-caller-identity --query "Account" >/dev/null 2>&1; then
-      local -r domain_owner="${1:-}"
-      assert_val "${domain_owner}" "missing param: domain_owner"
-
       AWS_CODEARTIFACT_AUTH_TOKEN="$(aws codeartifact get-authorization-token \
         --duration-seconds "$(( 12 * 60 * 60 ))" \
-        --domain "newscred" \
-        --domain-owner "${domain_owner}" \
+        --domain "$(ncd config aws.domain)" \
+        --domain-owner "$(ncd config aws.domain_owner)" \
         --query authorizationToken \
         --output text)"
 
@@ -139,6 +141,8 @@ ncd_on_aws() {
   fi
 
   rm -f "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off"
+
+  ncd aws:codeartifact-auth-token >/dev/null
 }
 
 ncd_off_aws() {
@@ -471,15 +475,33 @@ ncd_git_rebase() {
   local current_branch
   current_branch="$(git branch --show-current)"
 
+  local base_branch="master"
+  if [[ "${current_branch}" = sync-* ]]; then
+    base_branch="stable-master"
+  fi
+
+  local do_sync="false"
+  while (( "$#" )); do
+    case "$1" in
+      --sync)
+        do_sync="true"
+        shift;;
+      *)
+        shift;;
+    esac
+  done
+
   case "${current_branch}" in
     master|stable-master)
       echo "current on default branch: ${current_branch}"
       ;;
-    sync-*)
-      git rebase -i stable-master
-      ;;
     *)
-      git rebase -i master
+      if [[ "${do_sync}" = "true" ]]; then
+        git checkout "${base_branch}"
+        ncd git sync
+        git checkout "${current_branch}"
+      fi
+      git rebase -i ${base_branch}
       ;;
   esac
 }
