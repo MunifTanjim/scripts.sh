@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 commit="$(git log -n 50 --pretty=format:'%h %s' --no-merges | fzf | cut -c -7)"
 
