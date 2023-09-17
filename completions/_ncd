@@ -142,6 +142,14 @@ __ncd_arguments() {
       _describe -t things "things" _ncd_list_things \
         && ret=0
       ;;
+    k8s)
+      _ncd_k8s_commands=()
+      _ncd_k8s_commands+=("add-context" "current-context")
+      _ncd_k8s_commands+=("create-token" "copy-token")
+      _ncd_k8s_commands+=("exec" "logs")
+      _describe -t commands "commands" _ncd_k8s_commands \
+        && ret=0
+      ;;
     py)
       _ncd_py_commands=("venv-init" "try-install")
       _describe -t commands "commands" _ncd_py_commands \
@@ -176,7 +184,7 @@ __ncd_commands() {
   _ncd_commands+=("on" "off")
   _ncd_commands+=("git" "list")
   _ncd_commands+=("dc" "repo")
-  _ncd_commands+=("py")
+  _ncd_commands+=("py" "k8s")
   _ncd_commands+=("workspace")
 
   _describe -t ncd-commands "commands" _ncd_commands
