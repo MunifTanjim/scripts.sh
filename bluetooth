@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+assert_command() {
+  if ! type "${1}" >/dev/null 2>&1; then
+    echo "${2:-"command not found: ${1}"}"
+    exit 1
+  fi
+}
+
+assert_func() {
+  if ! declare -F "${1}" >/dev/null; then
+    echo "${2}"
+    exit 1
+  fi
+}
+
+_darwin_power() {
+  case "${1:-"?"}" in
+    ?)     blueutil --power  ;;
+    1|on)  blueutil --power 1;;
+    0|off) blueutil --power 0;;
+    *)     exit 1            ;;
+  esac
+}
+
+_darwin_restart() {
+  bluetooth power off
+  bluetooth power on
+}
+
+_darwin_connect() {
+  local -r blob="$(blueutil --format=json --paired)"
+  local -r name="$(echo "${blob}" | jq -r '.[].name' | fzf)"
+  local -r id="$(echo "${blob}" | jq -r ".[] | select(.name =\"${name}\") | .address")"
+  blueutil --disconnect "${id}"
+  blueutil --connect "${id}"
+}
+
+declare OS=""
+case "${OSTYPE}" in
+  darwin*)
+    assert_command blueutil
+    OS="darwin"
+    ;;
+  linux*)
+    OS="linux"
+    ;;
+  *)
+    echo "Unsupported OS!"
+    exit 1;;
+esac
+
+declare -r cmd="${1:-"help"}"
+shift || true
+
+case "${cmd}" in
+  help)
+    cat << HELP
+USAGE:
+  bluetooth power [0|1|on|off]
+  bluetooth restart
+  bluetooth connect
+HELP
+    exit 0
+esac
+
+declare -r func="_${OS}_${cmd}"
+assert_func "${func}" "invalid command: ${cmd}"
+
+$func $@
