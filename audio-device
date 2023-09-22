@@ -9,6 +9,13 @@ assert_command() {
   fi
 }
 
+assert_val() {
+  if [[ -z "${1}" ]]; then
+    echo "${2}"
+    exit 1
+  fi
+}
+
 assert_func() {
   if ! declare -F "${1}" >/dev/null; then
     echo "${2}"
@@ -16,13 +23,19 @@ assert_func() {
   fi
 }
 
-__linux_list_devices() {
-  local -r device_type="${1}"
-  pactl list short "${device_type}s"
+__linux_device_type() {
+  local device_type="${1}"
+  case "${1}" in
+    i*|so*) echo "source";;
+    o*|si*) echo "sink";;
+    *)
+      echo "invalid device type: ${1}"
+      exit 1
+  esac
 }
 
 __linux_describe_device() {
-  local -r device_type="${1}"
+  local -r device_type="$(__linux_device_type "${1}")"
   local -r index=$(( ${2} ))
   local -r key="${3}"
 
@@ -34,42 +47,95 @@ __linux_describe_device() {
   pacmd list-"${device_type}s" \
     | sed -n "/index: ${index}/,/index: /{/index: /!p;}" \
     | grep -e "${key}" | cut -d "${delim}" -f2 | head -1 \
-    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+  || echo ""
 }
 
-__linux_pick_device() {
-  local -r device_type="${1}"
+__linux_device_name() {
+  local -r device_type="$(__linux_device_type "${1}")"
+  local -r index="${2}"
+
+  local device_name
+  for key in "device.product.name" "bluez.alias" "device.description"; do
+    device_name="$(__linux_describe_device "${device_type}" "${index}" "${key}")"
+    if test -n "${device_name}"; then
+      echo "${device_name}"
+      return
+    fi
+  done
+}
+
+__linux_current_device_index() {
+  local -r device_type="$(__linux_device_type "${1}")"
+  pacmd list-"${device_type}s" | grep "\* index: " | sed -e 's/ *\* *index: *//'
+}
+
+
+__linux_list_devices() {
+  local -r device_type="$(__linux_device_type "${1}")"
 
   local -a devices
-  mapfile -t devices < <(__linux_list_devices "${device_type}")
+  mapfile -t devices < <(pactl list short "${device_type}s")
 
   local index
-  local -a choices=()
   for device in "${devices[@]}"; do
     index="$(echo "${device}" | awk '{print $1}')"
     if [[ "$(__linux_describe_device "${device_type}" "${index}" "flags")" = *HARDWARE* ]]; then
-      choices+=("${index} $(__linux_describe_device "${device_type}" "${index}" "device.description")")
+      echo "${index} $(__linux_device_name "${device_type}" "${index}")"
     fi
   done
+}
 
-  printf "%s\n" "${choices[@]}" | fzf | cut -d' ' -f1
+_linux_current() {
+  local -r input_device="$(__linux_device_name input "$(__linux_current_device_index input)")"
+  local -r output_device="$(__linux_device_name output "$(__linux_current_device_index output)")"
+
+  local -n variable="${1:-}_device"
+  
+  if test -z "${variable:-}"; then
+    echo " Input: ${input_device}"
+    echo "Output: ${output_device}"
+  else
+    echo "${variable}"
+  fi
 }
 
 _linux_input() {
-  pactl set-default-source "$(__linux_pick_device source)"
+  local -r device_type="$(__linux_device_type input)"
+
+  local selected_index
+  selected_index="$(__linux_list_devices "${device_type}" | fzf | cut -d' ' -f1)"
+
+  pactl set-default-source "${selected_index}"
 }
 
 _linux_output() {
-  pactl set-default-sink "$(__linux_pick_device sink)"
+  local -r device_type="$(__linux_device_type output)"
+
+  local selected_index
+  selected_index="$(__linux_list_devices "${device_type}" | fzf | cut -d' ' -f1)"
+
+  pactl set-default-sink "${selected_index}"
+
+  if [[ "$(__linux_describe_device "${device_type}" "${selected_index}" "device.bus")" = "bluetooth" ]]; then
+    local -A profile_map=(["Headset Head Unit (w/ Microphone)"]=headset_head_unit ["High Fidelity Playback (w/o Micrphone)"]=a2dp_sink)
+    local -r profile="${profile_map[$(printf "%s\n" "${!profile_map[@]}" | fzf --header='Bluetooth Sound Profile')]}"
+    pacmd set-card-profile "$(__linux_describe_device "${device_type}" "${selected_index}" "card" | awk '{ print $1 }')" "${profile}"
+  fi
 }
 
 _darwin_current() {
   local -r input_device="$(SwitchAudioSource -t input -c)"
   local -r output_device="$(SwitchAudioSource -t output -c)"
-  local -r both_device=$" Input: ${input_device}\nOutput: ${output_device}"
 
-  local -n t="${1:-both}_device"
-  printf "${t}\n"
+  local -n variable="${1:-}_device"
+
+  if test -z "${variable:-}"; then
+    echo " Input: ${input_device}"
+    echo "Output: ${output_device}"
+  else
+    echo "${variable}"
+  fi
 }
 
 _darwin_input() {
