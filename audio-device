@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+assert_command() {
+  if ! type "${1}" >/dev/null 2>&1; then
+    echo "${2:-"command not found: ${1}"}"
+    exit 1
+  fi
+}
+
+assert_func() {
+  if ! declare -F "${1}" >/dev/null; then
+    echo "${2}"
+    exit 1
+  fi
+}
+
+__linux_list_devices() {
+  local -r device_type="${1}"
+  pactl list short "${device_type}s"
+}
+
+__linux_describe_device() {
+  local -r device_type="${1}"
+  local -r index=$(( ${2} ))
+  local -r key="${3}"
+
+  local delim=":"
+  if [[ "${key}" = *"."* ]]; then
+    delim='"'
+  fi
+
+  pacmd list-"${device_type}s" \
+    | sed -n "/index: ${index}/,/index: /{/index: /!p;}" \
+    | grep -e "${key}" | cut -d "${delim}" -f2 | head -1 \
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+__linux_pick_device() {
+  local -r device_type="${1}"
+
+  local -a devices
+  mapfile -t devices < <(__linux_list_devices "${device_type}")
+
+  local index
+  local -a choices=()
+  for device in "${devices[@]}"; do
+    index="$(echo "${device}" | awk '{print $1}')"
+    if [[ "$(__linux_describe_device "${device_type}" "${index}" "flags")" = *HARDWARE* ]]; then
+      choices+=("${index} $(__linux_describe_device "${device_type}" "${index}" "device.description")")
+    fi
+  done
+
+  printf "%s\n" "${choices[@]}" | fzf | cut -d' ' -f1
+}
+
+_linux_input() {
+  pactl set-default-source "$(__linux_pick_device source)"
+}
+
+_linux_output() {
+  pactl set-default-sink "$(__linux_pick_device sink)"
+}
+
+_darwin_current() {
+  local -r input_device="$(SwitchAudioSource -t input -c)"
+  local -r output_device="$(SwitchAudioSource -t output -c)"
+  local -r both_device=$" Input: ${input_device}\nOutput: ${output_device}"
+
+  local -n t="${1:-both}_device"
+  printf "${t}\n"
+}
+
+_darwin_input() {
+  local -r device="$(SwitchAudioSource -t input -a | fzf --header='Input Device')"
+  SwitchAudioSource -t input -s "${device}"
+}
+
+_darwin_output() {
+  local -r device="$(SwitchAudioSource -t output -a | fzf --header='Output Device')"
+  SwitchAudioSource -t output -s "${device}"
+}
+
+assert_command fzf
+
+declare OS=""
+case "${OSTYPE}" in
+  darwin*)
+    assert_command SwitchAudioSource
+    OS="darwin"
+    ;;
+  linux*)
+    assert_command pacmd
+    assert_command pactl
+    OS="linux"
+    ;;
+  *)
+    echo "Unsupported OS!"
+    exit 1;;
+esac
+
+declare -r cmd="${1:-"help"}"
+shift || true
+
+case "${cmd}" in
+  source)
+    cmd="input";;
+  sink)
+    cmd="output";;
+  help)
+    cat << HELP
+USAGE:
+  audio-device current [input|output]
+  audio-device input
+  audio-device output
+HELP
+    exit 0
+esac
+
+declare -r func="_${OS}_${cmd}"
+assert_func "${func}" "invalid command: ${cmd}"
+
+$func $@
