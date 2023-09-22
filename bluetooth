@@ -9,6 +9,13 @@ assert_command() {
   fi
 }
 
+assert_val() {
+  if [[ -z "${1}" ]]; then
+    echo "${2}"
+    exit 1
+  fi
+}
+
 assert_func() {
   if ! declare -F "${1}" >/dev/null; then
     echo "${2}"
@@ -18,9 +25,9 @@ assert_func() {
 
 _darwin_power() {
   case "${1:-"?"}" in
-    ?)     blueutil --power  ;;
     1|on)  blueutil --power 1;;
     0|off) blueutil --power 0;;
+    ?)     blueutil --power  ;;
     *)     exit 1            ;;
   esac
 }
@@ -38,6 +45,29 @@ _darwin_connect() {
   blueutil --connect "${id}"
 }
 
+_linux_power() {
+  case "${1:-"?"}" in
+    1|on)  bluetoothctl power on;;
+    0|off) bluetoothctl power off;;
+    ?)     bluetoothctl show | grep --quiet "Powered: yes" && echo "1" || echo "0" ;;
+    *)     exit 1            ;;
+  esac
+}
+
+_linux_restart() {
+  bluetooth power off
+  bluetooth power on
+}
+
+_linux_connect() {
+  local -r blob="$(bluetoothctl paired-devices)"
+  local -r name="$(echo "${blob}" | sed -e 's/\S* \S* //' | fzf)"
+  assert_val "${name}" "failed to select device"
+  local -r id="$(echo "${blob}" | grep "${name}" | awk '{ print $2 }')"
+  bluetoothctl disconnect "${id}"
+  bluetoothctl connect "${id}"
+}
+
 declare OS=""
 case "${OSTYPE}" in
   darwin*)
@@ -45,6 +75,7 @@ case "${OSTYPE}" in
     OS="darwin"
     ;;
   linux*)
+    assert_command bluetoothctl
     OS="linux"
     ;;
   *)
