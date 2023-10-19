@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+setup_for_darwin() {
+  echo 'brew "stripe/stripe-cli/stripe"' | brew bundle --no-lock --file=-
+}
+
+setup_for_debian() {
+  curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public | gpg --dearmor | sudo tee /usr/share/keyrings/stripe.gpg
+
+  echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" | sudo tee -a /etc/apt/sources.list.d/stripe.list
+
+  sudo apt update
+
+  sudo apt install stripe
+}
+
+case $OSTYPE in
+  darwin*)
+    setup_for_darwin;;
+  linux*)
+    setup_for_debian;;
+  *)
+    echo "Unknown OS!"
+    exit 1;;
+esac
