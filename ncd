@@ -6,11 +6,7 @@ declare GITHUB_USERNAME="MunifTanjim"
 
 assert_command() {
   if ! type "${1}" >/dev/null 2>&1; then
-    if [[ -z "${2}" ]]; then
-      echo "command not found: ${1}"
-    else
-      echo "${2}"
-    fi
+    echo "${2:-"command not found: ${1}"}"
     exit 1
   fi
 }
@@ -692,6 +688,25 @@ ncd_py_venv-init() {
     fi
 
     pyenv virtualenv "${python_version}" "${venv_name}" 
+  fi
+}
+
+ncd_py_venv-remove() {
+  if ! __ncd_is_inside_workspace_repo; then
+    echo "not inside workspace repo"
+    exit 1
+  fi
+
+  local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
+  if [[ "${PWD}" != "$(ncd workspace)/${curr_repo}" ]]; then
+    echo "not inside workspace repo root"
+    exit 1
+  fi
+
+  local -r venv_name="nc-${curr_repo}"
+
+  if __pyenv_virtualenv_exists "${venv_name}"; then
+    pyenv virtualenv-delete "${venv_name}" 
   fi
 }
 

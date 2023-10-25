@@ -151,7 +151,7 @@ __ncd_arguments() {
         && ret=0
       ;;
     py)
-      _ncd_py_commands=("venv-init" "try-install")
+      _ncd_py_commands=("venv-init" "venv-remove" "try-install")
       _describe -t commands "commands" _ncd_py_commands \
         && ret=0
       ;;
