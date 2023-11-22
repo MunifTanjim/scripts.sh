@@ -473,44 +473,76 @@ ncd_git_pr-sync() {
   local -r sync_pr_branch="sync-pr-${pr_number}"
   local -r current_branch="$(git branch --show-current)"
 
-  local -r pr_blob="$(gh pr view "${pr_link}" --json mergedAt,number,title)"
+  local -r pr_blob="$(gh pr view "${pr_link}" --json mergedAt,number,title,body)"
 
   if [[ "${current_branch}" != "${sync_pr_branch}" ]]; then
-    local -r merged_at="$(echo "${pr_blob}" | jq -r '.mergedAt')"
-    local -r since="$(date --date="${merged_at} -40 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
-    local -r until="$(date --date="${merged_at}  +5 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
+    local commits_blob
 
-    local -r jq_query=".data.repository.defaultBranchRef.target.history.nodes | map(select(.associatedPullRequests.nodes[0].number == ${pr_number})) | reverse | map({ commit: .oid, message: .message })"
-    local -r commits_blob="$(gh api graphql --paginate -f query='
-    query ($since: GitTimestamp!, $until: GitTimestamp!, $endCursor: String) {
-      repository(name: "cmp-client", owner: "newscred") {
-        defaultBranchRef {
-          name
-          target {
-            ... on Commit {
-              id
-              history(first: 100, after: $endCursor, since: $since, until: $until) {
-                nodes {
-                  message
+    if [[ "$(echo "${pr_blob}" | jq -r '.mergedAt')" = "null" ]] || true; then
+      read -p "PR not merged yet. Are you sure to continue? [yN] " -n 1 -r
+      case ${REPLY} in
+        y|Y) echo;;
+        *) exit 1;;
+      esac
+
+      commits_blob="$(gh api graphql --paginate -f query='
+      query {
+        repository(owner: "newscred", name:"cmp-client") {
+          pullRequest(number: '${pr_number}') {
+            commits(first: 100) {
+              nodes {
+                commit {
                   oid
-                  associatedPullRequests(first: 1) {
-                    nodes {
-                      title
-                      permalink
-                      number
-                    }
-                  }
-                }
-                pageInfo {
-                  endCursor
-                  hasNextPage
+                  message
                 }
               }
             }
           }
         }
       }
-    }' -F since="${since}" -F until="${until}" --jq "${jq_query}")"
+      ' --jq ".data.repository.pullRequest.commits.nodes[] | map({ commit: .oid, message: .message })")"
+    else
+      local -r merged_at="$(echo "${pr_blob}" | jq -r '.mergedAt')"
+      local -r since="$(date --date="${merged_at} -40 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
+      local -r until="$(date --date="${merged_at}  +5 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+      local -r jq_query=".data.repository.defaultBranchRef.target.history.nodes | map(select(.associatedPullRequests.nodes[0].number == ${pr_number})) | reverse | map({ commit: .oid, message: .message })"
+      commits_blob="$(gh api graphql --paginate -f query='
+      query ($since: GitTimestamp!, $until: GitTimestamp!, $endCursor: String) {
+        repository(name: "cmp-client", owner: "newscred") {
+          defaultBranchRef {
+            name
+            target {
+              ... on Commit {
+                id
+                history(first: 100, after: $endCursor, since: $since, until: $until) {
+                  nodes {
+                    message
+                    oid
+                    associatedPullRequests(first: 1) {
+                      nodes {
+                        title
+                        permalink
+                        number
+                      }
+                    }
+                  }
+                  pageInfo {
+                    endCursor
+                    hasNextPage
+                  }
+                }
+              }
+            }
+          }
+        }
+      }' -F since="${since}" -F until="${until}" --jq "${jq_query}")"
+    fi
+
+    if [[ -z "${commits_blob}" ]]; then
+      echo "Failed to extract commits"
+      exit 1
+    fi
 
     echo "Switching to cmp-client:master"
     git checkout master
@@ -542,7 +574,11 @@ ncd_git_pr-sync() {
 
   echo "Creating PR..."
   local -r sync_pr_title="sync(#${pr_number}) $(echo "${pr_blob}" | jq -r '.title')"
-  gh --repo newscred/cmp-client-stable pr create --title "${sync_pr_title}"
+  local -r ticket_link="$(echo "${pr_blob}" | jq -r '.body' | grep "TICKET:" | cut -d' ' -f2)"
+  local -r sync_pr_body="$(cat .github/PULL_REQUEST_TEMPLATE.md \
+    | sed -e "s/^TICKET:.*$/TICKET: $(echo ${ticket_link} | sed -e 's/\//\\\//g')/" \
+    | sed -e ":a;N;\$!ba;s/\(Related PRs:[^-]*\)-[^\n]*/\1- Sync $(echo ${pr_link} | sed -e 's/\//\\\//g' )/")"
+  gh --repo newscred/cmp-client-stable pr create --title "${sync_pr_title}" --body "${sync_pr_body}"
   echo
 }
 
