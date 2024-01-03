@@ -21,11 +21,12 @@ setup_for_darwin() {
 }
 
 setup_for_debian() {
+  local -r installer="${1:-}"
   local -r app_path="/opt/kitty.app"
 
   echo "Downloading kitty..."
   curl -fsSL https://sw.kovidgoyal.net/kitty/installer.sh | sudo sh /dev/stdin \
-    dest=/opt installer=nightly launch=n 
+    dest=/opt installer="${installer}" launch=n 
 
   sudo chown -R "${USER}":"${USER}" "${app_path}"
 
@@ -61,7 +62,7 @@ case $OSTYPE in
   darwin*)
     setup_for_darwin;;
   linux*)
-    setup_for_debian;;
+    setup_for_debian "$@";;
   *)
     echo "Unknown OS!"
     exit 1;;
