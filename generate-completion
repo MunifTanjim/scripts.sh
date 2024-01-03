@@ -17,13 +17,14 @@ completion_generator_command_template[chezmoi]="{bin} completion {shell}"
 completion_generator_command_template[delta]="curl -fsSL https://raw.githubusercontent.com/dandavison/delta/master/etc/completion/completion.{shell}"
 completion_generator_command_template[deno]="{bin} completions {shell}"
 completion_generator_command_template[docker-compose]="curl -fsSL https://raw.githubusercontent.com/docker/compose/master/contrib/completion/{shell}/{filename}"
-completion_generator_command_template[docker]="curl -fsSL https://raw.githubusercontent.com/docker/cli/master/contrib/completion/{shell}/{filename}"
+completion_generator_command_template[docker]="{bin} completion {shell}"
 completion_generator_command_template[exa]="curl -fsSL https://raw.githubusercontent.com/ogham/exa/master/completions/{shell}/{filename}"
 completion_generator_command_template[exercism]="curl -fsSL https://raw.githubusercontent.com/exercism/cli/main/shell/{bin}_completion.{shell}"
 completion_generator_command_template[exercism:fish]="curl -fsSL https://raw.githubusercontent.com/exercism/cli/main/shell/{bin}.{shell}"
 completion_generator_command_template[fnm]="{bin} completions --shell {shell}"
 completion_generator_command_template[gh]="{bin} completion --shell {shell}"
 completion_generator_command_template[gopass]="{bin} completion {shell}"
+completion_generator_command_template[kubectl]="{bin} completion {shell}"
 completion_generator_command_template[lf]="curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/master/etc/{bin}.{shell}"
 completion_generator_command_template[luver]="{bin} completion {shell}"
 completion_generator_command_template[ncd:zsh]="{bin} completion {shell}"
@@ -34,6 +35,7 @@ completion_generator_command_template[rbenv]="curl -fsSL https://raw.githubuserc
 completion_generator_command_template[rustup]="{bin} completions {shell}"
 completion_generator_command_template[snap]="curl -fsSL https://raw.githubusercontent.com/snapcore/snapd/master/data/completion/{shell}/{filename}"
 completion_generator_command_template[starship]="{bin} completions {shell}"
+completion_generator_command_template[stripe]="{bin} completion --shell {shell} --write-to-stdout"
 completion_generator_command_template[volta]="{bin} completions {shell}"
 
 declare -a valid_shells=("bash" "fish" "zsh")
@@ -166,9 +168,9 @@ for bin in ${tools[@]}; do
   # fallback to generic command
   generator_command="${generator_command:-${completion_generator_command_template[${bin}]}}"
 
-  generator_command="${generator_command/\{shell\}/"${shell}"}"
-  generator_command="${generator_command/\{bin\}/"${bin}"}"
-  generator_command="${generator_command/\{filename\}/"${filename}"}"
+  generator_command="$(echo "${generator_command}" | sed "s/{shell}/${shell}/g")"
+  generator_command="$(echo "${generator_command}" | sed "s/{bin}/${bin}/g")"
+  generator_command="$(echo "${generator_command}" | sed "s/{filename}/${filename}/g")"
 
   if [[ -z $generator_command ]]; then
     echo "[warn] [${bin}] missing generator command for ${shell}!"
@@ -182,7 +184,7 @@ for bin in ${tools[@]}; do
     fi
   fi
 
-  ${generator_command} > "${completion_dir}/${filename}"
+  eval "${generator_command}" > "${completion_dir}/${filename}"
 
   echo "[info] [${bin}] completion script stored at: COMPLETION_DIR/${filename}"
 done
