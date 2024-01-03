@@ -478,7 +478,7 @@ ncd_git_pr-sync() {
   if [[ "${current_branch}" != "${sync_pr_branch}" ]]; then
     local commits_blob
 
-    if [[ "$(echo "${pr_blob}" | jq -r '.mergedAt')" = "null" ]] || true; then
+    if [[ "$(echo "${pr_blob}" | jq -r '.mergedAt')" = "null" ]]; then
       read -p "PR not merged yet. Are you sure to continue? [yN] " -n 1 -r
       case ${REPLY} in
         y|Y) echo;;
