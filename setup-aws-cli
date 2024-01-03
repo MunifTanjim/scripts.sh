@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+setup_for_darwin() {
+  echo 'brew "awscli"' | brew bundle --no-lock --file=-
+}
+
+setup_for_debian() {
+  cd /tmp
+
+  curl --progress-bar --continue-at - --output "awscliv2.zip" -L "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+
+  rm -rf ./aws
+  unzip awscliv2.zip
+
+  ./aws/install --install-dir "${HOME}/.local/share/aws-cli" --bin-dir "${HOME}/.local/bin" --update
+}
+
+case $OSTYPE in
+  darwin*)
+    setup_for_darwin;;
+  linux*)
+    setup_for_debian;;
+  *)
+    echo "Unknown OS!"
+    exit 1;;
+esac
