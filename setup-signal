@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+setup_for_darwin() {
+  echo 'cask "signal"' | brew bundle --no-lock --file=-
+}
+
+setup_for_debian() {
+  pushd /tmp
+
+  wget -qO- https://updates.signal.org/desktop/apt/keys.asc | gpg --dearmor \
+    | sudo tee /usr/share/keyrings/signal-desktop-keyring.gpg > /dev/null
+
+  echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/signal-desktop-keyring.gpg] https://updates.signal.org/desktop/apt xenial main' \
+    | sudo tee /etc/apt/sources.list.d/signal-xenial.list
+
+  popd
+
+  sudo apt update 
+
+  sudo apt install signal-desktop
+}
+
+case $OSTYPE in
+  darwin*)
+    setup_for_darwin;;
+  linux*)
+    setup_for_debian;;
+  *)
+    echo "Unknown OS!"
+    exit 1;;
+esac
