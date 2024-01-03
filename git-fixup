@@ -8,7 +8,7 @@ if test -z "${commit}"; then
 fi
 
 if [[ "${commit}" = "$(git rev-parse HEAD | head -c 7)" ]]; then
-  exec git commit --amend
+  exec git commit --amend "$@"
 else
-  exec git commit --fixup="${commit}"
+  exec git commit --fixup="${commit}" "$@"
 fi
