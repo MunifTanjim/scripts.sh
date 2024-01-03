@@ -38,10 +38,23 @@ _darwin_restart() {
 }
 
 _darwin_connect() {
+  local disconnect="no"
+  while (( "$#" )); do
+    case "${1}" in
+      --disconnect)
+        disconnect="yes"
+        shift;;
+      *)
+        shift;;
+    esac
+  done
+    
   local -r blob="$(blueutil --format=json --paired)"
   local -r name="$(echo "${blob}" | jq -r '.[].name' | fzf)"
   local -r id="$(echo "${blob}" | jq -r ".[] | select(.name =\"${name}\") | .address")"
-  blueutil --disconnect "${id}"
+  if [[ "${disconnect}" = "yes" ]]; then
+    blueutil --disconnect "${id}"
+  fi
   blueutil --connect "${id}"
 }
 
@@ -60,11 +73,24 @@ _linux_restart() {
 }
 
 _linux_connect() {
+  local disconnect="no"
+  while (( "$#" )); do
+    case "${1}" in
+      --disconnect)
+        disconnect="yes"
+        shift;;
+      *)
+        shift;;
+    esac
+  done
+
   local -r blob="$(bluetoothctl paired-devices)"
   local -r name="$(echo "${blob}" | sed -e 's/\S* \S* //' | fzf)"
   assert_val "${name}" "failed to select device"
   local -r id="$(echo "${blob}" | grep "${name}" | awk '{ print $2 }')"
-  bluetoothctl disconnect "${id}"
+  if [[ "${disconnect}" = "yes" ]]; then
+    bluetoothctl disconnect "${id}"
+  fi
   bluetoothctl connect "${id}"
 }
 
