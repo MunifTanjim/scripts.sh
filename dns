@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+assert_command() {
+  if ! type "${1}" >/dev/null 2>&1; then
+    echo "${2:-"command not found: ${1}"}"
+    exit 1
+  fi
+}
+
+assert_val() {
+  if [[ -z "${1}" ]]; then
+    echo "${2}"
+    exit 1
+  fi
+}
+
+assert_func() {
+  if ! declare -F "${1}" >/dev/null; then
+    echo "${2}"
+    exit 1
+  fi
+}
+
+_darwin_flush() {
+  sudo dscacheutil -flushcache
+}
+
+_darwin_restart() {
+  sudo killall -HUP mDNSResponder
+}
+
+_linux_flush() {
+  sudo resolvectl flush-caches
+}
+
+_linux_restart() {
+  sudo systemctl restart systemd-resolved
+}
+
+declare OS=""
+case "${OSTYPE}" in
+  darwin*)
+    OS="darwin"
+    ;;
+  linux*)
+    OS="linux"
+    ;;
+  *)
+    echo "Unsupported OS!"
+    exit 1;;
+esac
+
+declare -r cmd="${1:-"help"}"
+shift || true
+
+case "${cmd}" in
+  help)
+    cat << HELP
+USAGE:
+  dns flush
+  dns restart
+HELP
+    exit 0
+esac
+
+declare -r func="_${OS}_${cmd}"
+assert_func "${func}" "invalid command: ${cmd}"
+
+$func $@
