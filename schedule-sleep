@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+declare -r id="muniftanjim.sleep-timer"
+
+function list() {
+  pmset -g sched | tail -n +2 | grep "${id}" || true
+}
+
+function abort() {
+  declare entry="$(list | head -1)"
+  while test -n "${entry}"; do
+    sudo pmset schedule cancel "$(echo ${entry} | awk '{ print $1 }'  | grep -o '[[:digit:]]*')"
+    entry="$(list | head -1)" 
+  done
+}
+
+function add() {
+  declare minutes="${1}"
+  declare datetime=$(/bin/date -v+${minutes}M +"%m/%d/%y %H:%M:%S")
+  sudo pmset schedule sleep "${datetime}" "${id}"
+}
+
+case "${1}" in
+  abort)
+    abort;;
+  list)
+    list;;
+  *)
+    abort
+    add "${1}"
+    ;;
+esac
