@@ -33,11 +33,13 @@ assert_func() {
 }
 
 ncd_config() {
+  assert_command rq
   local blob="$(cat ~/.newscred.yaml | rq --input-yaml | jq -r '.ncd')"
   echo "${blob}" | jq -r ".${1:-""}"
 }
 
 ncd_workspace() {
+  assert_command rq
   local dir="$(cat ~/.newscred.yaml | rq --input-yaml | jq -r '.workspace')"
   dir="${dir/#\~/${HOME}}"
   echo "${dir}"
@@ -178,7 +180,7 @@ ncd_on_vpn() {
   echo "Checking VPN Connection..."
 
   local -r openvpn_connect="/Applications/OpenVPN Connect/OpenVPN Connect.app/contents/MacOS/OpenVPN Connect"
-  local -r profile_name="vpn.newscred.com [newscred]"
+  local -r profile_name="vpn.cmp.optimizely.com"
 
   osascript >/dev/null <<EOL
   if not (application "OpenVPN Connect" is running) then
@@ -271,6 +273,7 @@ ncd_dc() {
 
 # ncd list container
 ncd_list_container() {
+  assert_command rq
   cat "$(ncd workspace)/docker-compose.yml" | rq --input-yaml | jq -r '.services | keys | .[]'
 }
 
@@ -367,41 +370,53 @@ ncd_repo() {
   fi
 }
 
+ncd_k8s_namespaces() {
+  kubectl get namespaces --output=json | jq -r '.items[].metadata.name'
+}
+
+ncd_k8s_pods() {
+  local -r namespace="${1:-$(ncd k8s namespaces | fzf --header=Namespace)}"
+  kubectl get pods --namespace="${namespace}" --output=json | jq -r '.items[].metadata.name'
+}
+
+ncd_k8s_containers() {
+  local -r namespace="${1:-$(ncd k8s namespaces | fzf --header=Namespace)}"
+  local -r pod="${2:-$(ncd k8s pods "${namespace}" | fzf --header=Pod)}"
+  kubectl get pods --namespace="${namespace}" --output=json | jq -r ".items[] | select(.metadata.name == \"${pod}\") | .spec.containers[].name"
+}
+
 __k8s_select_resources() {
-  local _namespace="" _pod="" _container=""
-  local _pods_blob
+  local namespace="" pod="" container=""
+  local pods_blob
 
   while (( "$#" )); do
     case "${1}" in
       --namespace)
-        _namespace="$(kubectl get namespaces --output=json | jq -r '.items[].metadata.name' | fzf --header=Namespace)"
-        assert_val "${_namespace}" "missing namespace"
+        namespace="$(kubectl get namespaces --output=json | jq -r '.items[].metadata.name' | fzf --header=Namespace -q "${NCD_K8S_NAMESPACE:-}" -1)"
+        assert_val "${namespace}" "missing namespace"
 
-        local -n ref="${2}"
-        shift; shift
-        ref="${_namespace}"
+        export NCD_K8S_NAMESPACE="${namespace}"
+        shift
         ;;
       --pod)
-        assert_val "${_namespace}" "namespace needs to be selected first"
+        assert_val "${namespace}" "namespace needs to be selected first"
 
-        _pods_blob="$(kubectl get pods --namespace="${_namespace}" --output=json)"
+        pods_blob="$(kubectl get pods --namespace="${namespace}" --output=json)"
 
-        _pod="$(printf "%s" "${_pods_blob}" | jq -r '.items[].metadata.name' | fzf --header=Pod)"
-        assert_val "${_pod}" "missing pod"
+        pod="$(printf "%s" "${pods_blob}" | jq -r '.items[].metadata.name' | fzf --header=Pod -q "${NCD_K8S_POD}" -1)"
+        assert_val "${pod}" "missing pod"
 
-        local -n ref="${2}"
-        shift; shift
-        ref="${_pod}"
+        export NCD_K8S_POD="${pod}"
+        shift
         ;;
       --container)
-        assert_val "${_pod}" "pod needs to be selected first"
+        assert_val "${pod}" "pod needs to be selected first"
 
-        _container="$(printf "%s" "${_pods_blob}" | jq -r ".items[] | select(.metadata.name == \"${_pod}\") | .spec.containers[].name" | fzf --header=Container)"
-        assert_val "${_container}" "missing container"
+        container="$(printf "%s" "${pods_blob}" | jq -r ".items[] | select(.metadata.name == \"${pod}\") | .spec.containers[].name" | fzf --header=Container -q "${NCD_K8S_CONTAINER}" -1)"
+        assert_val "${container}" "missing container"
 
-        local -n ref="${2}"
-        shift; shift
-        ref="${_container}"
+        export NCD_K8S_CONTAINER="${container}"
+        shift
         ;;
       *)
         shift
@@ -410,22 +425,48 @@ __k8s_select_resources() {
   done
 }
 
-ncd_k8s_exec() {
-  local namespace="" pod="" container=""
-  __k8s_select_resources --namespace "namespace" --pod "pod" --container "container"
+ncd_k8s_cp() {
+  __k8s_select_resources --namespace --pod --container
 
-  local cmd
-  read -e -p "Command: " -i "/bin/bash" cmd
+  local a="${1}" direction="${2}" b="${3}"
+
+  if [[ "${direction}" = "to" ]]; then
+    kubectl cp "${a}" --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}:${b}" -c "${NCD_K8S_CONTAINER}" 
+  elif [[ "${direction}" = "from" ]]; then
+    kubectl cp "${b}" --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}:${a}" -c "${NCD_K8S_CONTAINER}" 
+  else
+    exit 1
+  fi
+}
+
+ncd_k8s_exec() {
+  __k8s_select_resources --namespace --pod --container
+
+  local cmd="${NCD_K8S_EXEC_CMD:-}"
+  read -e -p "Command: " -i "${cmd:-/bin/bash}" cmd
   assert_val "${cmd}" "missing command"
 
-  kubectl exec --namespace "${namespace}" "${pod}" -c "${container}" -it -- ${cmd}
+  kubectl exec --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}" -c "${NCD_K8S_CONTAINER}" -it -- ${cmd}
+}
+
+ncd_k8s_exec() {
+  __k8s_select_resources --namespace --pod --container
+
+  local cmd="${NCD_K8S_EXEC_CMD:-}"
+  if test -z "${cmd}"; then
+    read -e -p "Command: " -i "/bin/bash" cmd
+  else
+    cmd="/bin/bash -c '${cmd}'"
+  fi
+  assert_val "${cmd}" "missing command"
+
+  kubectl exec --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}" -c "${NCD_K8S_CONTAINER}" -it -- ${cmd}
 }
 
 ncd_k8s_logs() {
-  local namespace="" pod="" container=""
-  __k8s_select_resources --namespace "namespace" --pod "pod" --container "container"
+  __k8s_select_resources --namespace --pod --container
 
-  kubectl logs --namespace "${namespace}" "${pod}" -c "${container}" $@
+  kubectl logs --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}" -c "${NCD_K8S_CONTAINER}" $@
 }
 
 ncd_k8s_create-token() {
@@ -455,7 +496,42 @@ ncd_k8s_current-context() {
 
 # ncd k8s
 ncd_k8s() {
+  export NCD_K8S_NAMESPACE=${NCD_K8S_NAMESPACE:-} NCD_K8S_POD=${NCD_K8S_POD:-} NCD_K8S_CONTAINER=${NCD_K8S_CONTAINER:-}
   __ncd_cmd "k8s" $@
+}
+
+# ncd es aqs
+ncd_es_aqs() {
+  local endpoint="${1}"
+  shift
+
+  cat <<EOF > /tmp/ncd_es_aqs_script
+#!/bin/bash
+
+rm -f /tmp/ncd_es_aqs_script
+
+if ! type curl >/dev/null 2>&1; then
+  apt-get -qq update >/dev/null 2>&1
+  apt-get -qq install curl >/dev/null 2>&1
+fi
+
+export ES_HOST=\$(cat /opt/article-query/conf/article-query.json | grep ELASTICSEARCH_7_HOST | cut -d'"' -f4)
+
+curl "http://\${ES_HOST}/${endpoint}" ${@}
+EOF
+
+  chmod +x /tmp/ncd_es_aqs_script
+
+  export NCD_K8S_NAMESPACE=article-query NCD_K8S_POD=article-query- NCD_K8S_CONTAINER=article-query
+
+  ncd k8s cp /tmp/ncd_es_aqs_script to /tmp/ncd_es_aqs_script
+
+  NCD_K8S_EXEC_CMD="/tmp/ncd_es_aqs_script" ncd k8s exec
+}
+
+# ncd es
+ncd_es() {
+  __ncd_cmd "es" $@
 }
 
 # ncd git pr-sync
@@ -791,6 +867,5 @@ ncd() {
 assert_command aws
 assert_command fzf
 assert_command jq
-assert_command rq
 
 ncd $@

@@ -98,6 +98,12 @@ __ncd_arguments() {
     ec2_ip)
       _message "Enter pattern for EC2 name" && ret=0
       ;;
+    es)
+      _ncd_es_commands=()
+      _ncd_es_commands+=("aqs")
+      _describe -t commands "commands" _ncd_es_commands \
+        && ret=0
+      ;;
     dc)
       local curcontext="${curcontext}" state
 
@@ -185,6 +191,7 @@ __ncd_commands() {
   _ncd_commands+=("git" "list")
   _ncd_commands+=("dc" "repo")
   _ncd_commands+=("py" "k8s")
+  _ncd_commands+=("es")
   _ncd_commands+=("workspace")
 
   _describe -t ncd-commands "commands" _ncd_commands
