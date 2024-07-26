@@ -30,6 +30,7 @@ completion_generator_command_template[luver]="{bin} completion {shell}"
 completion_generator_command_template[ncd:zsh]="{bin} completion {shell}"
 completion_generator_command_template[netlify]="{bin} completion:generate --shell {shell}"
 completion_generator_command_template[nvm:bash]="curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/{shell}_completion"
+completion_generator_command_template[pnpm]="{bin} completion {shell}"
 completion_generator_command_template[pyenv]="curl -fsSL https://raw.githubusercontent.com/pyenv/pyenv/master/completions/{bin}.{shell}"
 completion_generator_command_template[rbenv]="curl -fsSL https://raw.githubusercontent.com/rbenv/rbenv/master/completions/{bin}.{shell}"
 completion_generator_command_template[rustup]="{bin} completions {shell}"
@@ -37,6 +38,7 @@ completion_generator_command_template[snap]="curl -fsSL https://raw.githubuserco
 completion_generator_command_template[starship]="{bin} completions {shell}"
 completion_generator_command_template[stripe]="{bin} completion --shell {shell} --write-to-stdout"
 completion_generator_command_template[volta]="{bin} completions {shell}"
+completion_generator_command_template[warp-cli]="{bin} generate-completions {shell}"
 
 declare -a valid_shells=("bash" "fish" "zsh")
 
