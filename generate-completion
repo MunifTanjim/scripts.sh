@@ -27,12 +27,14 @@ completion_generator_command_template[gopass]="{bin} completion {shell}"
 completion_generator_command_template[kubectl]="{bin} completion {shell}"
 completion_generator_command_template[lf]="curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/master/etc/{bin}.{shell}"
 completion_generator_command_template[luver]="{bin} completion {shell}"
+completion_generator_command_template[nc-docker:zsh]="cat ${DOTFILES}/.scripts.sh/completions/{filename}"
 completion_generator_command_template[ncd:zsh]="{bin} completion {shell}"
 completion_generator_command_template[netlify]="{bin} completion:generate --shell {shell}"
 completion_generator_command_template[nvm:bash]="curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/{shell}_completion"
 completion_generator_command_template[pnpm]="{bin} completion {shell}"
 completion_generator_command_template[pyenv]="curl -fsSL https://raw.githubusercontent.com/pyenv/pyenv/master/completions/{bin}.{shell}"
-completion_generator_command_template[rbenv]="curl -fsSL https://raw.githubusercontent.com/rbenv/rbenv/master/completions/{bin}.{shell}"
+completion_generator_command_template[rbenv:bash]="curl -fsSL https://raw.githubusercontent.com/rbenv/rbenv/master/completions/{bin}.{shell}"
+completion_generator_command_template[rbenv:zsh]="curl -fsSL https://raw.githubusercontent.com/rbenv/rbenv/master/completions/{filename}"
 completion_generator_command_template[rustup]="{bin} completions {shell}"
 completion_generator_command_template[snap]="curl -fsSL https://raw.githubusercontent.com/snapcore/snapd/master/data/completion/{shell}/{filename}"
 completion_generator_command_template[starship]="{bin} completions {shell}"
@@ -192,10 +194,8 @@ for bin in ${tools[@]}; do
 done
 
 if [[ ${shell} = "zsh" ]]; then
-  if [[ -d "${ZINIT_HOME}" ]]; then
-    echo
-    echo "If you use zinit, run the following:"
-    echo "$ zinit creinstall ${completion_dir}"
-    echo
+  if [[ -n "${ZED[ZCOMPDUMP_PATH]}" ]]; then
+    rm -f "${ZED[ZCOMPDUMP_PATH]}"
+    __zed_compinit
   fi
 fi
