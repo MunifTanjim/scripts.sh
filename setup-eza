@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+move() {
+  local -r src="$1"
+  local -r dest="$2"
+  local -r dest_dir="$(dirname "$dest")"
+  if [ ! -d "${dest_dir}" ]; then
+    mkdir -p "${dest_dir}"
+  fi
+  mv "${src}" "${dest}"
+}
+
+setup_for_darwin() {
+  echo 'brew "eza"' | brew bundle --no-lock --file=-
+}
+
+setup_for_debian() {
+  declare -r prefix_path="${HOME}/.local"
+
+  local temp_dir
+  temp_dir="$(mktemp --directory /tmp/eza--XXXXXXXXX)"
+  echo "$temp_dir"
+
+  cd "${temp_dir}"
+
+  local pattern
+  pattern="eza_$(uname -m)-unknown-linux-gnu.tar.gz"
+
+  echo "Downloading archive..."
+  gh release download --repo eza-community/eza --pattern "${pattern}"
+  gh release download --repo eza-community/eza --pattern "completions-*.tar.gz" -D ./completions
+  gh release download --repo eza-community/eza --pattern "man-*.tar.gz" -D ./man
+
+  echo "Extracting archive..."
+  tar -xzf ./eza_*.tar.gz
+  tar --strip-components=3 -xzf ./completions/*.tar.gz -C ./completions
+  tar --strip-components=3 -xzf ./man/*.tar.gz -C ./man
+
+  echo "Setting up: eza"
+  move ./eza "${prefix_path}/bin/eza"
+  move ./man/eza.1 "${prefix_path}/man/man1/eza.1"
+  move ./man/eza_colors-explanation.5 "${prefix_path}/man/man5/eza_colors-explanation.5"
+  move ./man/eza_colors.5 "${prefix_path}/man/man5/eza_colors.5"
+  move ./completions/eza "${prefix_path}/share/bash-completion/eza"
+  move ./completions/_eza "${prefix_path}/share/zsh/completions/_eza"
+
+  sudo ln -nsf "${prefix_path}/bin/eza" "/usr/local/bin/eza"
+
+  echo "Cleaning up..."
+  rm -rf "${temp_dir}"
+
+  echo "Done!"
+}
+
+case "${OSTYPE}" in
+darwin*)
+  setup_for_darwin
+  ;;
+linux*)
+  setup_for_debian
+  ;;
+*)
+  echo "Unknown OS!"
+  exit 1
+  ;;
+esac
