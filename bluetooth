@@ -68,6 +68,13 @@ _linux_power() {
 }
 
 _linux_restart() {
+  if [[ -z "$(bluetoothctl list)" ]]; then
+    sudo modprobe -r btusb
+    sudo modprobe btusb
+    while [[ -z "$(bluetoothctl list)" ]]; do
+      sleep 0.2
+    done
+  fi
   bluetooth power off
   bluetooth power on
 }
