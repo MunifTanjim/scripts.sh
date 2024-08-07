@@ -26,7 +26,7 @@ cd "${temp_dir}/youtube-dl"
 echo "Setting up: youtube-dl"
 move ./youtube-dl "${prefix_path}/bin/youtube-dl"
 move ./youtube-dl.1 "${prefix_path}/man/man1/youtube-dl.1"
-move ./youtube-dl.bash-completion "${prefix_path}/share/bash-completion/youtube-dl"
+move ./youtube-dl.bash-completion "${prefix_path}/share/bash-completion/completions/youtube-dl"
 move ./youtube-dl.zsh "${prefix_path}/share/zsh/completions/_youtube-dl"
 
 echo "Done!"

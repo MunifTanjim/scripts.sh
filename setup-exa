@@ -34,7 +34,7 @@ fi
 
 move ./man/exa.1 "${prefix_path}/man/man1/exa.1"
 move ./man/exa_colors.5 "${prefix_path}/man/man5/exa_colors.5"
-move ./completions/exa.bash "${prefix_path}/share/bash-completion/exa"
+move ./completions/exa.bash "${prefix_path}/share/bash-completion/completions/exa"
 move ./completions/exa.zsh "${prefix_path}/share/zsh/completions/_exa"
 
 echo "Cleaning up..."

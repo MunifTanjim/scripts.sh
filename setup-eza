@@ -43,7 +43,7 @@ setup_for_debian() {
   move ./man/eza.1 "${prefix_path}/man/man1/eza.1"
   move ./man/eza_colors-explanation.5 "${prefix_path}/man/man5/eza_colors-explanation.5"
   move ./man/eza_colors.5 "${prefix_path}/man/man5/eza_colors.5"
-  move ./completions/eza "${prefix_path}/share/bash-completion/eza"
+  move ./completions/eza "${prefix_path}/share/bash-completion/completions/eza"
   move ./completions/_eza "${prefix_path}/share/zsh/completions/_eza"
 
   sudo ln -nsf "${prefix_path}/bin/eza" "/usr/local/bin/eza"

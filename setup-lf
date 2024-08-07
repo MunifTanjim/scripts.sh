@@ -40,7 +40,7 @@ setup_for_debian() {
   echo "Setting up: lf"
   move ./lf "${prefix_path}/bin/lf"
   move ./lf.1 "${prefix_path}/man/man1/lf.1"
-  move ./etc/lf.bash "${prefix_path}/share/bash-completion/lf"
+  move ./etc/lf.bash "${prefix_path}/share/bash-completion/completions/lf"
   move ./etc/lf.zsh "${prefix_path}/share/zsh/completions/_lf"
 
   sudo ln -nsf "${prefix_path}/bin/lf" "/usr/local/bin/lf"
