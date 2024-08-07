@@ -2,10 +2,38 @@
 
 set -eo pipefail
 
+declare -r normal='\e[0m'
+declare -r bold='\e[1m'
+declare -r mute='\e[2m'
+declare -r italic='\e[3m'
+declare -r underline='\e[4m'
+declare -r red='\e[31m'
+declare -r green='\e[32m'
+declare -r yellow='\e[33m'
+declare -r blue='\e[34m'
+declare -r magenta='\e[35m'
+declare -r cyan='\e[36m'
+
+function log() {
+  >&2 command echo "${@}"
+}
+
+function log.info() {
+  log -e "${cyan}${mute}[info]${normal} ${@}"
+}
+
+function log.warn() {
+  log -e "${yellow}${mute}[warn]${normal} ${@}"
+}
+
+function log.error() {
+  log -e "${red}${mute}[error]${normal} ${@}"
+}
+
 declare -A default_completion_dir
-default_completion_dir[bash]="${HOME}/.local/share/bash-completion/completions"
+default_completion_dir[bash]="${XDG_DATA_HOME:-"${HOME}/.local/share"}/bash-completion/completions"
 default_completion_dir[fish]="${HOME}/.config/fish/completions"
-default_completion_dir[zsh]="${HOME}/.local/share/zsh/completions"
+default_completion_dir[zsh]="${XDG_DATA_HOME:-"${HOME}/.local/share"}/zsh/completions"
 
 declare -A completion_generator_command_template
 completion_generator_command_template[alacritty:bash]="curl -fsSL https://raw.githubusercontent.com/alacritty/alacritty/master/extra/completions/{bin}.{shell}"
@@ -21,7 +49,7 @@ completion_generator_command_template[docker]="{bin} completion {shell}"
 completion_generator_command_template[exa]="curl -fsSL https://raw.githubusercontent.com/ogham/exa/master/completions/{shell}/{filename}"
 completion_generator_command_template[exercism]="curl -fsSL https://raw.githubusercontent.com/exercism/cli/main/shell/{bin}_completion.{shell}"
 completion_generator_command_template[exercism:fish]="curl -fsSL https://raw.githubusercontent.com/exercism/cli/main/shell/{bin}.{shell}"
-completion_generator_command_template[eza]="curl -fsSL https://raw.githubusercontent.com/eza-community/eza/master/completions/{shell}/{filename}"
+completion_generator_command_template[eza]="curl -fsSL https://raw.githubusercontent.com/eza-community/eza/main/completions/{shell}/{filename}"
 completion_generator_command_template[fnm]="{bin} completions --shell {shell}"
 completion_generator_command_template[gh]="{bin} completion --shell {shell}"
 completion_generator_command_template[gopass]="{bin} completion {shell}"
@@ -64,25 +92,27 @@ is-valid-tool() {
 declare shell="$(basename "$(echo ${SHELL})")"
 
 show-help() {
-  echo "Usage:"
-  echo "  generate-completion [OPTIONS] [TOOLS..]"
-  echo
-  echo "OPTIONS"
-  echo "  --all          generate for all available tools"
-  echo "  --dir          completion script directory"
-  echo "                   (default: ${default_completion_dir[${shell}]})"
-  echo "  --shell SHELL  name of the shell"
-  echo "                   (default: ${shell})"
-  echo "  --yes          non-interactive mode"
-  echo
-  echo "TOOLS"
+  log "Usage:"
+  log "  generate-completion [OPTIONS] [TOOLS..]"
+  log
+  log "OPTIONS"
+  log "  --all              generate for all available tools"
+  log "  --dir <DIR>        completion script directory"
+  log "                       (default: ${default_completion_dir[${shell}]})"
+  log "  --debug            debug mode"
+  log "  --shell <SHELL>    name of the shell"
+  log "                       (default: ${shell})"
+  log "  -y, --yes          non-interactive mode"
+  log "  -h, --help         print help"
+  log
+  log "TOOLS"
   for tool in ${valid_tools[@]}; do
-    echo " - ${tool}"
+    log " - ${tool}"
   done
-  echo
-  echo "SHELL"
+  log
+  log "SHELL"
   for shell in ${valid_shells[@]}; do
-    echo " - ${shell}"
+    log " - ${shell}"
   done
 }
 
@@ -94,33 +124,33 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --all)
       tools=(${valid_tools[@]})
-      shift $#;;
+      shift;;
     --dir)
       completion_dir="${2}"
       shift 2;;
     --debug)
       set -x
       shift;;
-    --help|-h)
+    -h|--help)
       show-help
       exit 0
       shift;;
     --shell)
       if ! is-valid-shell "${2}"; then
-        echo "[error] unsupported shell: ${2}!"
+        log.error "unsupported shell: ${2}!"
         exit 1
       fi
 
       shell="${2}"
       shift 2;;
-    --yes)
+    -y|--yes)
       interactive="no"
       shift;;
     -*)
       shift;;
     *)
       if ! is-valid-tool "${1}"; then
-        echo "[error] unsupported tool: ${1}!"
+        log.error "unsupported tool: ${1}!"
         exit 1
       fi
 
@@ -135,18 +165,18 @@ if [[ ${#tools[@]} -eq 0 ]]; then
 fi
 
 if [[ ${shell} = "fish" ]] && [[ "${interactive}" = "yes" ]]; then
-  echo "[warn] ${shell} support is experimental!"
+  log.warn "${shell} support is experimental!"
   read -rp "do you want to continue? (yN): " proceed
   if [[ ${proceed} != "y" ]]; then
     exit 0
   fi
-  echo
+  log
 fi
 
 if [[ $interactive = "yes" ]]; then
   read -rp "${shell} completion dir (default: ${default_completion_dir[${shell}]}): " completion_dir
   completion_dir="${completion_dir:-"${default_completion_dir[${shell}]}"}"
-  echo
+  log
 elif [[ $interactive = "no" ]]; then
   completion_dir="${completion_dir:-"${default_completion_dir[${shell}]}"}"
 fi
@@ -155,10 +185,10 @@ if [[ ! -d ${completion_dir} ]]; then
   mkdir -p "${completion_dir}"
 fi
 
-echo "[info] COMPLETION_DIR=${completion_dir}"
+log.info "COMPLETION_DIR=${green}${completion_dir}${normal}"
 
 for bin in ${tools[@]}; do
-  echo
+  log
 
   declare filename="${bin}"
   if [[ ${shell} = "fish" ]]; then
@@ -177,26 +207,37 @@ for bin in ${tools[@]}; do
   generator_command="$(echo "${generator_command}" | sed "s/{bin}/${bin}/g")"
   generator_command="$(echo "${generator_command}" | sed "s/{filename}/${filename}/g")"
 
+  log.info "${bold}${italic}${magenta}${bin}${normal}"
+
   if [[ -z $generator_command ]]; then
-    echo "[warn] [${bin}] missing generator command for ${shell}!"
+    log.warn "missing generator command for ${shell}!"
     continue
   fi
 
   if [[ $generator_command == "${bin} "*  ]]; then
     if ! type ${bin} >/dev/null 2>&1; then
-      echo "[warn] [${bin}] skipped! binary not found!"
+      log.warn "skipped! binary not found!"
       continue
     fi
   fi
 
-  eval "${generator_command}" > "${completion_dir}/${filename}"
+  
+  declare content="$(eval "${generator_command}")"
+  if test -n "${content}"; then
+    echo "${content}" > "${completion_dir}/${filename}"
 
-  echo "[info] [${bin}] completion script stored at: COMPLETION_DIR/${filename}"
+    log.info "completion script stored at: ${green}\${COMPLETION_DIR}/${filename}${normal}"
+  else
+    log.warn "failed!"
+  fi
 done
 
 if [[ ${shell} = "zsh" ]]; then
-  if [[ -n "${ZED[ZCOMPDUMP_PATH]}" ]]; then
-    rm -f "${ZED[ZCOMPDUMP_PATH]}"
-    __zed_compinit
-  fi
+  log
+  log "----------------------------------------"
+  log
+  log "If you use zed, run the following:"
+  log
+  log "  rm -f \"\${ZED[ZCOMPDUMP_PATH]}\""
+  log
 fi
