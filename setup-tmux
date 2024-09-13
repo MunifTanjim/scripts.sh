@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-set -eu
+set -euo pipefail
 
 get_latest_reposiotry() {
-  local repo_uri="${1}"
-  local repo_dir="${2}"
+  local -r repo_uri="${1}"
+  local -r repo_dir="${2}"
 
   echo "Repository URI: ${repo_uri}"
   if [[ ! -d "${repo_dir}" ]]; then
@@ -22,22 +22,49 @@ get_latest_reposiotry() {
   popd >/dev/null
 }
 
-declare -r owner="tmux"
-declare -r repo="tmux"
+setup_for_darwin() {
+  if test -z "$(brew list | grep tmux)"; then
+    brew install --HEAD tmux
+  else
+    brew reinstall tmux
+  fi
+}
 
-get_latest_reposiotry "https://github.com/${owner}/${repo}" "${HOME}/Dev/github/${owner}/${repo}"
-pushd "${HOME}/Dev/github/${owner}/${repo}" >/dev/null
+setup_for_debian() {
+  local -r owner="tmux"
+  local -r repo="tmux"
 
-echo "Installing dependencies..."
-sudo apt install -y libevent-dev ncurses-dev build-essential bison pkg-config
+  get_latest_reposiotry "https://github.com/${owner}/${repo}" "${HOME}/Dev/github/${owner}/${repo}"
+  pushd "${HOME}/Dev/github/${owner}/${repo}" >/dev/null
 
-echo "Running build..."
-sh autogen.sh
-./configure --prefix=${HOME}/.local
-make
-make install
+  echo "Installing dependencies..."
+  sudo apt install -y libevent-dev ncurses-dev build-essential bison pkg-config
 
-echo "Setting up binary: tmux"
-sudo ln -nsf ${HOME}/.local/bin/tmux /usr/local/bin/tmux
+  echo "Running build..."
+  sh autogen.sh
+  ./configure --enable-sixel --prefix="${HOME}/.local"
+  make
+  make install
 
-echo "Done!"
+  echo "Setting up binary: tmux"
+  sudo ln -nsf "${HOME}/.local/bin/tmux" /usr/local/bin/tmux
+
+  echo "Done!"
+}
+
+setup() {
+  case "${OSTYPE}" in
+  darwin*)
+    setup_for_darwin
+    ;;
+  linux*)
+    setup_for_debian
+    ;;
+  *)
+    echo "Unknown OS!"
+    exit 1
+    ;;
+  esac
+}
+
+setup
