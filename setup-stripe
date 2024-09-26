@@ -7,21 +7,27 @@ setup_for_darwin() {
 }
 
 setup_for_debian() {
-  curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public | gpg --dearmor | sudo tee /usr/share/keyrings/stripe.gpg
+  curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public | gpg --dearmor | sudo tee /usr/share/keyrings/stripe.gpg >/dev/null
 
-  echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" | sudo tee -a /etc/apt/sources.list.d/stripe.list
+  local -r apt_source_list_file="/etc/apt/sources.list.d/stripe.list"
+  if ! test -f "${apt_source_list_file}"; then
+    echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" | sudo tee -a /etc/apt/sources.list.d/stripe.list
+  fi
 
   sudo apt update
 
   sudo apt install stripe
 }
 
-case $OSTYPE in
-  darwin*)
-    setup_for_darwin;;
-  linux*)
-    setup_for_debian;;
-  *)
-    echo "Unknown OS!"
-    exit 1;;
+case "${OSTYPE}" in
+darwin*)
+  setup_for_darwin
+  ;;
+linux*)
+  setup_for_debian
+  ;;
+*)
+  echo "Unknown OS!"
+  exit 1
+  ;;
 esac
