@@ -13,24 +13,20 @@ __ncd_caching_policy() {
 __ncd_repo_names() {
   integer ret=1
 
-  if ! zstyle -t ":completion:${curcontext%:*}:" cache-policy; then
-    zstyle ":completion:${curcontext%:*}:" cache-policy __ncd_caching_policy
+  if ! zstyle -t ":completion:${curcontext}:" cache-policy; then
+    zstyle ":completion:${curcontext}:" cache-policy __ncd_caching_policy
   fi
 
-  if ! zstyle -t ":completion:${curcontext%:*:*}:*:repo:names" sort; then
-    zstyle ":completion:${curcontext%:*:*}:*:repo:names" sort false
-  fi
+  local cache_name="_ncd_repo_names"
 
-  local cachename="_ncd_repo_names"
-
-  if ( [[ ${(P)+cachename} -eq 0 ]] || _cache_invalid "${cachename#_}" ) \
-    && ! _retrieve_cache "${cachename#_}"; then
+  if ( [[ ${(P)+cache_name} -eq 0 ]] || _cache_invalid "${cache_name#_}" ) \
+    && ! _retrieve_cache "${cache_name#_}"; then
       _message "listing repo names..."
       _ncd_repo_names=($(ncd list:repo))
-      _store_cache ${cachename#_} _ncd_repo_names
+      _store_cache ${cache_name#_} ${cache_name}
   fi
 
-  _describe -t repos "Repo Names" _ncd_repo_names \
+  _describe -t repos "repo names" _ncd_repo_names \
     && ret=0
 
   return ret
@@ -39,21 +35,17 @@ __ncd_repo_names() {
 __ncd_dc_containers() {
   integer ret=1
 
-  if ! zstyle -t ":completion:${curcontext%:*}:" cache-policy; then
-    zstyle ":completion:${curcontext%:*}:" cache-policy __ncd_caching_policy
+  if ! zstyle -t ":completion:${curcontext}:" cache-policy; then
+    zstyle ":completion:${curcontext}:" cache-policy __ncd_caching_policy
   fi
 
-  if ! zstyle -t ":completion:${curcontext%:*:*}:*:dc:containers" sort; then
-    zstyle ":completion:${curcontext%:*:*}:*:dc:containers" sort false
-  fi
+  local cache_name="_ncd_dc_containers"
 
-  local cachename="_ncd_dc_containers"
-
-  if ( [[ ${(P)+cachename} -eq 0 ]] || _cache_invalid "${cachename#_}" ) \
-    && ! _retrieve_cache "${cachename#_}"; then
+  if ( [[ ${(P)+cache_name} -eq 0 ]] || _cache_invalid "${cache_name#_}" ) \
+    && ! _retrieve_cache "${cache_name#_}"; then
       _message "reading docker containers..."
       _ncd_dc_containers=($(ncd list:container))
-      _store_cache ${cachename#_} _ncd_dc_containers
+      _store_cache ${cache_name#_} _ncd_dc_containers
   fi
 
   _describe -t containers "docker containers" _ncd_dc_containers \
@@ -65,21 +57,17 @@ __ncd_dc_containers() {
 __ncd_dc_commands() {
   integer ret=1
 
-  if ! zstyle -t ":completion:${curcontext%:*}:" cache-policy; then
-    zstyle ":completion:${curcontext%:*}:" cache-policy __ncd_caching_policy
+  if ! zstyle -t ":completion:${curcontext}:" cache-policy; then
+    zstyle ":completion:${curcontext}:" cache-policy __ncd_caching_policy
   fi
 
-  if ! zstyle -t ":completion:${curcontext%:*:*}:*:dc:commands" sort; then
-    zstyle ":completion:${curcontext%:*:*}:*:dc:commands" sort false
-  fi
+  local cache_name="_ncd_dc_commands"
 
-  local cachename="_ncd_dc_commands"
-
-  if ( [[ ${(P)+cachename} -eq 0 ]] || _cache_invalid "${cachename#_}" ) \
-    && ! _retrieve_cache "${cachename#_}"; then
+  if ( [[ ${(P)+cache_name} -eq 0 ]] || _cache_invalid "${cache_name#_}" ) \
+    && ! _retrieve_cache "${cache_name#_}"; then
       _message "reading ncd dc commands..."
       _ncd_dc_commands=(${(f)"$(ncd dc --help | sed '1,/Commands:/d' | sed '/^$/,$d' | sed 's/^  //' | sed 's/^\([^ ]*\) */\1:/g')"})
-      _store_cache ${cachename#_} _ncd_dc_commands
+      _store_cache ${cache_name#_} _ncd_dc_commands
   fi
 
   _describe -t commands "${words[2]} commands" _ncd_dc_commands \
@@ -137,7 +125,7 @@ __ncd_arguments() {
 
       case "${state}" in
         command)
-          _ncd_git_commands=("pr-sync" "prepare-remote" "rebase" "sync")
+          _ncd_git_commands=("default-branch" "pr-sync" "prepare-remote" "rebase" "sync")
           _describe -t commands "commands" _ncd_git_commands \
             && ret=0
           ;;
@@ -168,7 +156,6 @@ __ncd_arguments() {
         '1: :->name' \
         && ret=0
 
-      __debug "${state}"
       case "${state}" in
         name)
           _ncd_repo_windows=($(ncd list:repo-window))

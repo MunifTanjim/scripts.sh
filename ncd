@@ -4,6 +4,10 @@ set -euo pipefail
 
 declare GITHUB_USERNAME="MunifTanjim"
 
+command_exists() {
+  type "${1}" >/dev/null 2>&1
+}
+
 assert_command() {
   if ! type "${1}" >/dev/null 2>&1; then
     echo "${2:-"command not found: ${1}"}"
@@ -34,12 +38,14 @@ assert_func() {
 
 ncd_config() {
   assert_command rq
+
   local blob="$(cat ~/.newscred.yaml | rq --input-yaml | jq -r '.ncd')"
   echo "${blob}" | jq -r ".${1:-""}"
 }
 
 ncd_workspace() {
   assert_command rq
+
   local dir="$(cat ~/.newscred.yaml | rq --input-yaml | jq -r '.workspace')"
   dir="${dir/#\~/${HOME}}"
   echo "${dir}"
@@ -79,9 +85,18 @@ __ncd_assert_inside_workspace_repo() {
   fi
 }
 
-__ncd_assert_py_repo_venv() {
+__ncd_py_venv_name() {
   local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
-  local -r venv_name="nc-${curr_repo}"
+  local venv_name="nc-${curr_repo}"
+  if [[ "${PWD}" != "$(ncd workspace)/${curr_repo}" ]]; then
+    venv_name="${venv_name}${PWD:(($(ncd workspace | wc -c) + ${#curr_repo}))}"
+    venv_name="${venv_name//\//-}"
+  fi
+  echo "${venv_name}"
+}
+
+__ncd_assert_py_repo_venv() {
+  local -r venv_name="$(__ncd_py_venv_name)"
   if [[ "$(__pyenv_virtualenv_current)" != "${venv_name}" ]]; then
     echo "virtualenv not active: ${venv_name}"
     exit 1
@@ -99,31 +114,36 @@ __ncd_cmd() {
   local -r func="ncd_${cmd}_${subcmd}"
   assert_func "${func}" "invalid param: ${subcmd}"
 
-  $func $@
+  $func "$@"
 }
 
 # ncd completion
 ncd_completion() {
   local dir="$(realpath "${BASH_SOURCE[0]}")"
   dir="${dir%/*}"
-  cat "${dir}/completions/_ncd"
+  local -r completion_file="${dir}/completions/_ncd"
+  if test -f "${completion_file}"; then
+    cat "${completion_file}"
+  else
+    curl -fsSL https://raw.githubusercontent.com/MunifTanjim/scripts.sh/main/completions/_ncd
+  fi
 }
 
 # ncd aws:codeartifact-auth-token
 ncd_aws_codeartifact-auth-token() {
-  if [[ ! -e "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off" && \
-        ! ( -f "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token" && \
-            -n "$(find "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token" -mmin -$(( 10 * 60 )))" ) ]]; then
+  if [[ ! -e "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off" &&
+    ! (-f "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token" &&
+    -n "$(find "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token" -mmin -$((10 * 60)))") ]]; then
     if aws sts get-caller-identity --query "Account" >/dev/null 2>&1; then
       AWS_CODEARTIFACT_AUTH_TOKEN="$(aws codeartifact get-authorization-token \
-        --duration-seconds "$(( 12 * 60 * 60 ))" \
+        --duration-seconds "$((12 * 60 * 60))" \
         --domain "$(ncd config aws.domain)" \
         --domain-owner "$(ncd config aws.domain_owner)" \
         --query authorizationToken \
         --output text)"
 
       if test -n "${AWS_CODEARTIFACT_AUTH_TOKEN}"; then
-        echo "${AWS_CODEARTIFACT_AUTH_TOKEN}" > "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token"
+        echo "${AWS_CODEARTIFACT_AUTH_TOKEN}" >"${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token"
       fi
     fi
   fi
@@ -150,11 +170,11 @@ ncd_off_aws() {
 }
 
 ncd_on_docker() {
-  echo "Checking Docker Desktop..."
+  echo "Checking Docker..."
 
   osascript >/dev/null <<EOL
-  if not (application "Docker Desktop" is running) then
-    tell application "Docker Desktop" to activate
+  if not (application "Docker" is running) then
+    tell application "Docker" to activate
   end if
 EOL
 }
@@ -262,12 +282,12 @@ ncd_dc() {
   shift
 
   case "${cmd}" in
-    logs)
-      exec nc-docker logs --no-log-prefix $@
-      ;;
-    *)
-      exec nc-docker ${cmd} $@
-      ;;
+  logs)
+    exec nc-docker logs --no-log-prefix "$@"
+    ;;
+  *)
+    exec nc-docker ${cmd} "$@"
+    ;;
   esac
 }
 
@@ -279,7 +299,7 @@ ncd_list_container() {
 
 # ncd list repo
 ncd_list_repo() {
-  find "$(ncd workspace)" -maxdepth 2 -type d -name '.git'  | xargs dirname | xargs -n1 basename
+  find "$(ncd workspace)" -maxdepth 2 -type d -name '.git' | xargs dirname | xargs -n1 basename
 }
 
 # ncd list repo-window
@@ -288,22 +308,22 @@ ncd_list_repo-window() {
 
   while IFS= read -r window; do
     if test -n "${window}"; then
-      local window_id="$(echo "${window}" | awk '{ print $2 }' )" 
+      local window_id="$(echo "${window}" | awk '{ print $2 }')"
       local tag="$(tmux show-option -w -t "${window_id}" -qv '@ncd_repo_window')"
       if [[ -n "${tag}" ]]; then
         windows+=("${tag}")
       fi
     fi
-  done <<< "$(tmux list-windows -F '#{window_active} #{window_id} #W')"
+  done <<<"$(tmux list-windows -F '#{window_active} #{window_id} #W')"
 
-  if (( ${#windows[@]} )); then
+  if ((${#windows[@]})); then
     printf '%s\n' "${windows[@]}"
   fi
 }
 
 # ncd list
 ncd_list() {
-  __ncd_cmd "list" $@
+  __ncd_cmd "list" "$@"
 }
 
 __ncd_untag_current_repo_window() {
@@ -345,13 +365,13 @@ ncd_repo() {
   # if already tagged, jump to window
   while IFS= read -r window; do
     if test -n "${window}"; then
-      local window_id="$(echo "${window}" | awk '{ print $2 }' )" 
+      local window_id="$(echo "${window}" | awk '{ print $2 }')"
       if [[ "${repo}" = "$(tmux show-option -w -t "${window_id}" -qv '@ncd_repo_window')" ]]; then
         tmux select-window -t "${window_id}"
         exit 0
       fi
     fi
-  done <<< "$(tmux list-windows -F '#{window_active} #{window_id} #W')"
+  done <<<"$(tmux list-windows -F '#{window_active} #{window_id} #W')"
 
   local -r repo_path="$(ncd workspace)/${repo}"
   local -r window_name=":${repo}"
@@ -389,38 +409,38 @@ __k8s_select_resources() {
   local namespace="" pod="" container=""
   local pods_blob
 
-  while (( "$#" )); do
+  while (("$#")); do
     case "${1}" in
-      --namespace)
-        namespace="$(kubectl get namespaces --output=json | jq -r '.items[].metadata.name' | fzf --header=Namespace -q "${NCD_K8S_NAMESPACE:-}" -1)"
-        assert_val "${namespace}" "missing namespace"
+    --namespace)
+      namespace="$(kubectl get namespaces --output=json | jq -r '.items[].metadata.name' | fzf --header=Namespace -q "${NCD_K8S_NAMESPACE:-}" -1)"
+      assert_val "${namespace}" "missing namespace"
 
-        export NCD_K8S_NAMESPACE="${namespace}"
-        shift
-        ;;
-      --pod)
-        assert_val "${namespace}" "namespace needs to be selected first"
+      export NCD_K8S_NAMESPACE="${namespace}"
+      shift
+      ;;
+    --pod)
+      assert_val "${namespace}" "namespace needs to be selected first"
 
-        pods_blob="$(kubectl get pods --namespace="${namespace}" --output=json)"
+      pods_blob="$(kubectl get pods --namespace="${namespace}" --output=json)"
 
-        pod="$(printf "%s" "${pods_blob}" | jq -r '.items[].metadata.name' | fzf --header=Pod -q "${NCD_K8S_POD}" -1)"
-        assert_val "${pod}" "missing pod"
+      pod="$(printf "%s" "${pods_blob}" | jq -r '.items[].metadata.name' | fzf --header=Pod -q "${NCD_K8S_POD}" -1)"
+      assert_val "${pod}" "missing pod"
 
-        export NCD_K8S_POD="${pod}"
-        shift
-        ;;
-      --container)
-        assert_val "${pod}" "pod needs to be selected first"
+      export NCD_K8S_POD="${pod}"
+      shift
+      ;;
+    --container)
+      assert_val "${pod}" "pod needs to be selected first"
 
-        container="$(printf "%s" "${pods_blob}" | jq -r ".items[] | select(.metadata.name == \"${pod}\") | .spec.containers[].name" | fzf --header=Container -q "${NCD_K8S_CONTAINER}" -1)"
-        assert_val "${container}" "missing container"
+      container="$(printf "%s" "${pods_blob}" | jq -r ".items[] | select(.metadata.name == \"${pod}\") | .spec.containers[].name" | fzf --header=Container -q "${NCD_K8S_CONTAINER}" -1)"
+      assert_val "${container}" "missing container"
 
-        export NCD_K8S_CONTAINER="${container}"
-        shift
-        ;;
-      *)
-        shift
-        ;;
+      export NCD_K8S_CONTAINER="${container}"
+      shift
+      ;;
+    *)
+      shift
+      ;;
     esac
   done
 }
@@ -431,9 +451,9 @@ ncd_k8s_cp() {
   local a="${1}" direction="${2}" b="${3}"
 
   if [[ "${direction}" = "to" ]]; then
-    kubectl cp "${a}" --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}:${b}" -c "${NCD_K8S_CONTAINER}" 
+    kubectl cp "${a}" --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}:${b}" -c "${NCD_K8S_CONTAINER}"
   elif [[ "${direction}" = "from" ]]; then
-    kubectl cp "${b}" --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}:${a}" -c "${NCD_K8S_CONTAINER}" 
+    kubectl cp "${b}" --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}:${a}" -c "${NCD_K8S_CONTAINER}"
   else
     exit 1
   fi
@@ -466,7 +486,7 @@ ncd_k8s_exec() {
 ncd_k8s_logs() {
   __k8s_select_resources --namespace --pod --container
 
-  kubectl logs --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}" -c "${NCD_K8S_CONTAINER}" $@
+  kubectl logs --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}" -c "${NCD_K8S_CONTAINER}" "$@"
 }
 
 ncd_k8s_create-token() {
@@ -478,7 +498,7 @@ ncd_k8s_create-token() {
 }
 
 ncd_k8s_copy-token() {
-  ncd k8s create-token $@ | copy-to-clipboard
+  ncd k8s create-token "$@" | copy-to-clipboard
 }
 
 ncd_k8s_add-context() {
@@ -496,8 +516,10 @@ ncd_k8s_current-context() {
 
 # ncd k8s
 ncd_k8s() {
+  assert_command kubectl
+
   export NCD_K8S_NAMESPACE=${NCD_K8S_NAMESPACE:-} NCD_K8S_POD=${NCD_K8S_POD:-} NCD_K8S_CONTAINER=${NCD_K8S_CONTAINER:-}
-  __ncd_cmd "k8s" $@
+  __ncd_cmd "k8s" "$@"
 }
 
 # ncd es aqs
@@ -505,7 +527,16 @@ ncd_es_aqs() {
   local endpoint="${1}"
   shift
 
-  cat <<EOF > /tmp/ncd_es_aqs_script
+  local args=()
+  for arg in "$@"; do
+    if echo "${arg}" | grep -s "\s"; then
+      args+=("'${arg//\'/\\\'}'")
+    else
+      args+=("${arg}")
+    fi
+  done
+
+  cat <<EOF >/tmp/ncd_es_aqs_script
 #!/bin/bash
 
 rm -f /tmp/ncd_es_aqs_script
@@ -517,7 +548,7 @@ fi
 
 export ES_HOST=\$(cat /opt/article-query/conf/article-query.json | grep ELASTICSEARCH_7_HOST | cut -d'"' -f4)
 
-curl "http://\${ES_HOST}/${endpoint}" ${@}
+curl "http://\${ES_HOST}/${endpoint}" ${args[@]}
 EOF
 
   chmod +x /tmp/ncd_es_aqs_script
@@ -531,11 +562,13 @@ EOF
 
 # ncd es
 ncd_es() {
-  __ncd_cmd "es" $@
+  __ncd_cmd "es" "$@"
 }
 
 # ncd git pr-sync
 ncd_git_pr-sync() {
+  assert_command gh
+
   local -r pr_link="${1:-}"
   assert_val "${pr_link}" "missing pr link"
   shift
@@ -557,8 +590,8 @@ ncd_git_pr-sync() {
     if [[ "$(echo "${pr_blob}" | jq -r '.mergedAt')" = "null" ]]; then
       read -p "PR not merged yet. Are you sure to continue? [yN] " -n 1 -r
       case ${REPLY} in
-        y|Y) echo;;
-        *) exit 1;;
+      y | Y) echo ;;
+      *) exit 1 ;;
       esac
 
       commits_blob="$(gh api graphql --paginate -f query='
@@ -639,7 +672,7 @@ ncd_git_pr-sync() {
     echo
 
     echo "Cherry-Picking Commits:"
-    echo "${commits_blob}" | jq  -r '.[] | "* " + .commit[0:10] + " " + .message'
+    echo "${commits_blob}" | jq -r '.[] | "* " + .commit[0:10] + " " + .message'
     echo
     git cherry-pick $(echo "${commits_blob}" | jq -r '.[] | .commit' | xargs)
     echo
@@ -651,11 +684,29 @@ ncd_git_pr-sync() {
   echo "Creating PR..."
   local -r sync_pr_title="sync(#${pr_number}) $(echo "${pr_blob}" | jq -r '.title')"
   local -r ticket_link="$(echo "${pr_blob}" | jq -r '.body' | grep "TICKET:" | cut -d' ' -f2)"
-  local -r sync_pr_body="$(cat .github/PULL_REQUEST_TEMPLATE.md \
-    | sed -e "s/^TICKET:.*$/TICKET: $(echo ${ticket_link} | sed -e 's/\//\\\//g')/" \
-    | sed -e ":a;N;\$!ba;s/\(Related PRs:[^-]*\)-[^\n]*/\1- Sync $(echo ${pr_link} | sed -e 's/\//\\\//g' )/")"
+  local -r sync_pr_body="$(cat .github/PULL_REQUEST_TEMPLATE.md |
+    sed -e "s/^TICKET:.*$/TICKET: $(echo ${ticket_link} | sed -e 's/\//\\\//g')/" |
+    sed -e ":a;N;\$!ba;s/\(Related PRs:[^-]*\)-[^\n]*/\1- Sync $(echo ${pr_link} | sed -e 's/\//\\\//g')/")"
   gh --repo newscred/cmp-client-stable pr create --title "${sync_pr_title}" --body "${sync_pr_body}"
   echo
+}
+
+ncd_git_default-branch() {
+  for input in "newscred/HEAD" "origin/HEAD"; do
+    local output=""
+    output="$(git rev-parse --abbrev-ref "${input}" 2>/dev/null || true)"
+    if test -z "${output}" || test "${output}" = "${input}"; then
+      git fetch "${input%/*}" --quiet
+      local output="$(git remote set-head "${input%/*}" --auto 2>/dev/null || true)"
+      if test -n "${output}"; then
+        echo "${output}" | cut -d" " -f4
+        return
+      fi
+    else
+      echo "${output#*/}"
+      return
+    fi
+  done
 }
 
 # ncd git sync
@@ -664,18 +715,18 @@ ncd_git_sync() {
   current_branch="$(git branch --show-current)"
 
   case "${current_branch}" in
-    master|main)
-      git pull newscred  "${current_branch}"
-      git push
-      ;;
-    stable-master)
-      git fetch stable-newscred master
-      git reset --hard stable-newscred/master
-      git push -f -u stable-origin stable-master:master
-      ;;
-    *)
-      echo "current on non-default branch: ${current_branch}"
-      ;;
+  master | main)
+    git pull newscred "${current_branch}"
+    git push
+    ;;
+  stable-master)
+    git fetch stable-newscred master
+    git reset --hard stable-newscred/master
+    git push -f -u stable-origin stable-master:master
+    ;;
+  *)
+    ncd git rebase --sync
+    ;;
   esac
 }
 
@@ -683,35 +734,41 @@ ncd_git_sync() {
 ncd_git_rebase() {
   local current_branch
   current_branch="$(git branch --show-current)"
+  local -r default_branch="$(ncd_git_default-branch)"
+  if test -z "${default_branch}"; then
+    exit 1
+  fi
 
-  local base_branch="master"
+  local base_branch="${default_branch}"
   if [[ "${current_branch}" = sync-* ]]; then
     base_branch="stable-master"
   fi
 
   local do_sync="false"
-  while (( "$#" )); do
+  while (("$#")); do
     case "$1" in
-      --sync)
-        do_sync="true"
-        shift;;
-      *)
-        shift;;
+    --sync)
+      do_sync="true"
+      shift
+      ;;
+    *)
+      shift
+      ;;
     esac
   done
 
   case "${current_branch}" in
-    master|stable-master)
-      echo "current on default branch: ${current_branch}"
-      ;;
-    *)
-      if [[ "${do_sync}" = "true" ]]; then
-        git checkout "${base_branch}"
-        ncd git sync
-        git checkout "${current_branch}"
-      fi
-      git rebase -i ${base_branch}
-      ;;
+  main | master | stable-master)
+    echo "current on default branch: ${current_branch}"
+    ;;
+  *)
+    if [[ "${do_sync}" = "true" ]]; then
+      git checkout "${base_branch}"
+      ncd git sync
+      git checkout "${current_branch}"
+    fi
+    git rebase -i ${base_branch}
+    ;;
   esac
 }
 
@@ -720,33 +777,29 @@ ncd_git_prepare-remote() {
   local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
 
   local -A remote_url_map
-  remote_url_map[newscred]="https://github.com/newscred/${curr_repo}.git"
-  remote_url_map[origin]="https://github.com/${GITHUB_USERNAME}/${curr_repo}.git"
-
-  for remote in "newscred" "origin"; do
-    if ! git remote show | grep -q "${remote}"; then
-      git remote add "${remote}" "${remote_url_map[${remote}]}"
-    fi
-    printf "%15s %s\n" "${remote}" "$(git remote get-url ${remote})"
-  done
-
+  remote_url_map["newscred"]="git@github.com:newscred/${curr_repo}.git"
+  remote_url_map["origin"]="git@github.com:${GITHUB_USERNAME}/${curr_repo}.git"
   if [[ "${curr_repo}" = "cmp-client" ]]; then
-    remote_url_map[stable-newscred]="https://github.com/newscred/${curr_repo}-stable.git"
-    remote_url_map[stable-origin]="https://github.com/${GITHUB_USERNAME}/${curr_repo}-stable.git"
-
-    for remote in "stable-newscred" "stable-origin"; do
-      if ! git remote show | grep -q "${remote}"; then
-        git remote add "${remote}" "${remote_url_map[${remote}]}"
-      fi
-      printf "%15s %s\n" "${remote}" "$(git remote get-url ${remote})"
-    done
+    remote_url_map["stable-newscred"]="git@github.com:newscred/${curr_repo}-stable.git"
+    remote_url_map["stable-origin"]="git@github.com:${GITHUB_USERNAME}/${curr_repo}-stable.git"
   fi
+
+  local remote_url
+  for remote in ${!remote_url_map[@]}; do
+    remote_url="$(git remote get-url "${remote}" 2>/dev/null || true)"
+    if test -z "${remote_url}"; then
+      git remote add "${remote}" "${remote_url_map["${remote}"]}"
+    elif test "${remote_url}" != "${remote_url_map["${remote}"]}"; then
+      git remote set-url "${remote}" "${remote_url_map["${remote}"]}"
+    fi
+    printf "%15s %s\n" "${remote}" "$(git remote get-url "${remote}")"
+  done
 }
 
 # ncd git
 ncd_git() {
   __ncd_assert_inside_workspace_repo
-  __ncd_cmd "git" $@
+  __ncd_cmd "git" "$@"
 }
 
 # ncd py venv-init
@@ -756,20 +809,14 @@ ncd_py_venv-init() {
     exit 1
   fi
 
-  local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
-  if [[ "${PWD}" != "$(ncd workspace)/${curr_repo}" ]]; then
-    echo "not inside workspace repo root"
-    exit 1
-  fi
-
-  local -r venv_name="nc-${curr_repo}"
+  local venv_name="$(__ncd_py_venv_name)"
 
   AUTOENV_FILE_ENTER="${AUTOENV_FILE_ENTER:-.autoenv.in.zsh}"
   if ! [[ -f "${AUTOENV_FILE_ENTER}" ]]; then
     touch "${AUTOENV_FILE_ENTER}"
   fi
   if ! cat "${AUTOENV_FILE_ENTER}" | grep -q "^export PYENV_VERSION"; then
-    echo "export PYENV_VERSION=\"${venv_name}\"" >> "${AUTOENV_FILE_ENTER}"
+    echo "export PYENV_VERSION=\"${venv_name}\"" >>"${AUTOENV_FILE_ENTER}"
   fi
   source "${AUTOENV_FILE_ENTER}"
 
@@ -778,7 +825,7 @@ ncd_py_venv-init() {
     touch "${AUTOENV_FILE_LEAVE}"
   fi
   if ! cat "${AUTOENV_FILE_LEAVE}" | grep -q "^unset PYENV_VERSION"; then
-    echo "unset PYENV_VERSION" >> "${AUTOENV_FILE_LEAVE}"
+    echo "unset PYENV_VERSION" >>"${AUTOENV_FILE_LEAVE}"
   fi
 
   __pyenv_init
@@ -799,7 +846,7 @@ ncd_py_venv-init() {
       pyenv install "${python_version}"
     fi
 
-    pyenv virtualenv "${python_version}" "${venv_name}" 
+    pyenv virtualenv "${python_version}" "${venv_name}"
   fi
 }
 
@@ -809,16 +856,10 @@ ncd_py_venv-remove() {
     exit 1
   fi
 
-  local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
-  if [[ "${PWD}" != "$(ncd workspace)/${curr_repo}" ]]; then
-    echo "not inside workspace repo root"
-    exit 1
-  fi
-
-  local -r venv_name="nc-${curr_repo}"
+  local venv_name="$(__ncd_py_venv_name)"
 
   if __pyenv_virtualenv_exists "${venv_name}"; then
-    pyenv virtualenv-delete "${venv_name}" 
+    pyenv virtualenv-delete "${venv_name}"
   fi
 }
 
@@ -827,30 +868,43 @@ __py_list_requirements() {
   cat "${filename}" | sed 's/#.*//' | grep -v "^$" | grep -v "^#" | grep "^.*==.*"
 }
 
+__py_install_requirements() {
+  local -r filename="${1}"
+  if command_exists parallel; then
+    __py_list_requirements "${filename}" | parallel pip install {}
+  else
+    __py_list_requirements "${filename}" | xargs -n1 pip install
+  fi
+  true
+}
+
 # ncd py try-install
 ncd_py_try-install() {
   __pyenv_init
   __ncd_assert_py_repo_venv
 
-  if [[ -f requirements-explicit.txt ]]; then
-    __py_list_requirements requirements-explicit.txt | xargs -n1 pip install
-    exit 0
-  fi
-
-  if [[ -f requirements.in ]] && [[ -f requirements.txt ]]; then
-    __py_list_requirements requirements.txt | xargs -n1 pip install
-    exit 0
-  fi
-
   if [[ -f requirements-common.txt ]]; then
-    __py_list_requirements requirements-common.txt | xargs -n1 pip install
+    __py_install_requirements requirements-common.txt
+  fi
+
+  if [[ -f requirements-dev.txt ]]; then
+    __py_install_requirements requirements-dev.txt
+  fi
+
+  if [[ -f requirements-explicit.txt ]] && [[ -f requirements.txt ]]; then
+    __py_install_requirements requirements.txt
+  elif [[ -f requirements.in ]] && [[ -f requirements.txt ]]; then
+    __py_install_requirements requirements.txt
   fi
 }
 
 # ncd py
 ncd_py() {
+  assert_command pip
+  assert_command pyenv
+
   __ncd_assert_inside_workspace_repo
-  __ncd_cmd "py" $@
+  __ncd_cmd "py" "$@"
 }
 
 ncd() {
@@ -861,11 +915,11 @@ ncd() {
   local -r func="ncd_${cmd//:/_}"
   assert_func "${func}" "invalid command: ${cmd}"
 
-  $func $@
+  $func "$@"
 }
 
 assert_command aws
 assert_command fzf
 assert_command jq
 
-ncd $@
+ncd "$@"
