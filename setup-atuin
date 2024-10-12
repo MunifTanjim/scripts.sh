@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+declare -r ATUIN_INSTALL_DIR="${XDG_DATA_HOME:-"${HOME}/local/share"}/atuin"
+
+export PATH="${ATUIN_INSTALL_DIR}:${PATH}"
+
+if type atuin >/dev/null 2>&1; then
+  echo "info: already installed"
+  echo "info: trying to re-install"
+else
+  echo "info: trying to install"
+fi
+
+echo
+
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/atuinsh/atuin/releases/latest/download/atuin-installer.sh | CARGO_DIST_FORCE_INSTALL_DIR="${ATUIN_INSTALL_DIR}" INSTALLER_NO_MODIFY_PATH=1 sh
+
+ln -nsf "${ATUIN_INSTALL_DIR}/atuin" "${HOME}/.local/bin/atuin"
