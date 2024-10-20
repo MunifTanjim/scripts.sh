@@ -17,3 +17,8 @@ if test -x "${install_dir}/fnm"; then
     ln -nsf "${install_dir}/fnm" "${bin_dir}/fnm"
   fi
 fi
+
+if ! fnm exec --using=default node -v >/dev/null 2>&1; then
+  fnm install --lts
+  fnm default "$(fnm list-remote --lts --latest | cut -d' ' -f1)"
+fi
