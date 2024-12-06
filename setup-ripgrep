@@ -22,6 +22,10 @@ setup_for_darwin() {
 
 setup_for_debian() {
   if test "$(uname -m)" = "aarch64"; then
+    export CARGO_HOME=${CARGO_HOME:-"${HOME}/.local/share/cargo"}
+    export RUSTUP_HOME=${RUSTUP_HOME:-"${HOME}/.local/share/rustup"}
+    export PATH="${PATH}:${CARGO_HOME}/bin"
+    source "${CARGO_HOME}/env"
     cargo install ripgrep
   else
     setup-from-github-release "BurntSushi/ripgrep" "amd64.deb"
@@ -30,16 +34,18 @@ setup_for_debian() {
 
 setup_ripgrep() {
   case $OSTYPE in
-    darwin*)
-      setup_for_darwin;;
-    linux*)
-      if command_exists dpkg; then
-        setup_for_debian
-      fi
-      ;;
-    *)
-      echo "Unknown OS!"
-      exit 1;;
+  darwin*)
+    setup_for_darwin
+    ;;
+  linux*)
+    if command_exists dpkg; then
+      setup_for_debian
+    fi
+    ;;
+  *)
+    echo "Unknown OS!"
+    exit 1
+    ;;
   esac
 }
 
