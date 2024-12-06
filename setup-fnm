@@ -18,6 +18,8 @@ if test -x "${install_dir}/fnm"; then
   fi
 fi
 
+export PATH="${PATH}:${bin_dir}"
+
 if ! fnm exec --using=default node -v >/dev/null 2>&1; then
   fnm install --lts
   fnm default "$(fnm list-remote --lts --latest | cut -d' ' -f1)"
