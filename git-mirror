@@ -2,6 +2,7 @@
 // vim: set filetype=javascript :
 
 import { URL } from "url";
+import { Codeberg } from "./zx/codeberg.mjs";
 import { GitHub } from "./zx/github.mjs";
 import { GitLab } from "./zx/gitlab.mjs";
 import { JetBrainsSpace } from "./zx/jetbrains-space.mjs";
@@ -12,27 +13,6 @@ const ask_bool = async (prompt) => {
   return await question(`${prompt} [y/N] `).then((answer) => {
     return answer.toLowerCase() == "y";
   });
-};
-
-const read_file = async (filename) => {
-  return await fs.readFile(filename, { encoding: "utf8" });
-};
-
-const generate_ssh_keypair = async (comment = "git-mirror") => {
-  const filename = "/tmp/git-mirror-key";
-
-  $`rm -f ${filename} ${filename}.pub`;
-
-  await $`ssh-keygen -t ed25519 -C ${comment} -N '' -f ${filename}`;
-
-  const [privateKey, publicKey] = await Promise.all([
-    read_file(filename),
-    read_file(`${filename}.pub`),
-  ]);
-
-  $`rm -f ${filename} ${filename}.pub`;
-
-  return { privateKey, publicKey };
 };
 
 const allowed_default_branches = ["main", "master"];
@@ -46,8 +26,8 @@ async function get_repo_info() {
   if (!allowed_default_branches.includes(current_branch)) {
     throw new Error(
       `Current branch: ${current_branch}, expected: ${allowed_default_branches.join(
-        "/"
-      )}`
+        "/",
+      )}`,
     );
   }
 
@@ -56,6 +36,17 @@ async function get_repo_info() {
 
   const remote = {};
 
+  function parseRemoteUrl(url) {
+    if (url.startsWith("git@")) {
+      url = url.replace(/^git@([^:]+):/, "https://$1/");
+    }
+    try {
+      return new URL(url);
+    } catch {
+      return null;
+    }
+  }
+
   for (const remote_name of remote_names) {
     remote[remote_name] = {};
 
@@ -63,13 +54,15 @@ async function get_repo_info() {
     remote[remote_name]["fetch"] = ret.stdout
       .trim()
       .split("\n")
-      .map((url) => new URL(url));
+      .map(parseRemoteUrl)
+      .filter(Boolean);
 
     ret = await $`git remote get-url --all --push ${remote_name}`;
     remote[remote_name]["push"] = ret.stdout
       .trim()
       .split("\n")
-      .map((url) => new URL(url));
+      .map(parseRemoteUrl)
+      .filter(Boolean);
 
     remote[remote_name].url = remote[remote_name]["fetch"][0];
   }
@@ -105,6 +98,107 @@ async function ensure_git_mirror_remote(repo, name, remote_url) {
   await $`git remote add origin-${name} ${url.href}`;
 
   await refresh_repo_info(repo);
+}
+
+async function init_codeberg(repo) {
+  const codeberg = await new Codeberg({ id: "git-mirror" }).init();
+
+  const get_mirror_project_settings = () => ({
+    description: `Mirroring: ${repo.remote.origin.url.href}`,
+    issues: false,
+    labels: false,
+    lfs: false,
+    milestones: false,
+    pull_requests: false,
+    releases: false,
+    service: "git",
+    wiki: false,
+  });
+
+  async function create_mirror({ try_import = true, is_public = null } = {}) {
+    codeberg.log.info(`Creating project: ${repo.project}...`);
+
+    if (typeof is_public !== "boolean") {
+      is_public = await ask_bool("Make project public?");
+    }
+
+    const settings = get_mirror_project_settings(repo);
+
+    const res = try_import
+      ? await codeberg.api("POST /repos/migrate", {
+          body: {
+            ...settings,
+            repo_name: repo.name,
+            clone_addr: repo.remote.origin.url.href,
+            private: !is_public,
+          },
+        })
+      : await codeberg.api("POST /user/repos", {
+          body: {
+            auto_init: false,
+            description: settings.description,
+            name: repo.name,
+            private: !is_public,
+          },
+        });
+
+    if (res.ok) {
+      codeberg.log.info(`Created project: ${repo.project}...`);
+      return res.data;
+    } else if (try_import && res.status === 422) {
+      codeberg.log.error(`Failed to create project: ${repo.project}...`);
+      codeberg.log.error(`  Reason:  ${res.data.message}`);
+      await codeberg.api(`DELETE /repos/${repo.project}`);
+      codeberg.log.info(`Trying again w/o initial import...`);
+      return create_mirror({ try_import: false, is_public });
+    } else {
+      codeberg.log.error(`Failed to create project: ${repo.project}...`);
+      throw res;
+    }
+  }
+
+  async function update_mirror(project) {
+    const settings = get_mirror_project_settings();
+    const res = await codeberg.api(
+      `PATCH /repos/${project.owner.login}/${project.name}`,
+      {
+        body: {
+          description: settings.description,
+          has_actions: settings.actions ?? false,
+          has_issues: settings.issues,
+          has_packages: settings.packages ?? false,
+          has_projects: settings.projects ?? false,
+          has_pull_requests: settings.pull_requests,
+          has_releases: settings.releases,
+          has_wiki: settings.wiki,
+        },
+      },
+    );
+
+    if (!res.ok) {
+      throw res;
+    }
+  }
+
+  async function ensure_mirror() {
+    const res = await codeberg.api(`/repos/${repo.project}`);
+
+    let project;
+
+    if (res.ok) {
+      codeberg.log.info(`Project Found: ${repo.project}`);
+      project = res.data;
+    } else {
+      project = await create_mirror();
+    }
+    await update_mirror(project);
+    codeberg.log.info(`Synced Settings...`);
+  }
+
+  await ensure_mirror();
+
+  const remote_url = `https://codeberg.org/${repo.project}.git`;
+  await ensure_git_mirror_remote(repo, "codeberg", remote_url);
 }
 
 async function init_gitlab(repo) {
@@ -174,7 +268,7 @@ async function init_gitlab(repo) {
 
   async function ensure_mirror() {
     const res = await gitlab.api(
-      `/projects/${encodeURIComponent(repo.project)}`
+      `/projects/${encodeURIComponent(repo.project)}`,
     );
 
     if (res.ok) {
@@ -188,14 +282,14 @@ async function init_gitlab(repo) {
 
   async function remove_mirror_branch_protection() {
     const res = await gitlab.api(
-      `/projects/${encodeURIComponent(repo.project)}/protected_branches`
+      `/projects/${encodeURIComponent(repo.project)}/protected_branches`,
     );
 
     for (const item of res.data) {
       await gitlab.api(
         `DELETE /projects/${encodeURIComponent(
-          repo.project
-        )}/protected_branches/${item.name}`
+          repo.project,
+        )}/protected_branches/${item.name}`,
       );
       gitlab.log.info(`Removed branch protection: ${item.name}`);
     }
@@ -227,7 +321,7 @@ async function init_jetbrains_space(repo) {
 
     let res = await space.api(
       `POST /projects/${project_key}/repositories/test-connection`,
-      { body }
+      { body },
     );
 
     if (!res.ok) {
@@ -244,45 +338,7 @@ async function init_jetbrains_space(repo) {
     const github_deploy_key_title = "muniftanjim.jetbrains.space:mirror";
 
     const github = new GitHub({ id: "git-mirror" });
-    res = await github.api("/repos/{owner}/{repo}/keys", {
-      jq: `.[] | select(.title=="${github_deploy_key_title}")`,
-    });
-
-    if (!res.ok) {
-      throw res;
-    }
-
-    if (res.data) {
-      res = await github.api(
-        `DELETE /repos/{owner}/{repo}/keys/${res.data.id}`
-      );
-
-      if (!res.ok) {
-        github.log.info(
-          `Failed to remove old deploy key (${github_deploy_key_title})`
-        );
-        throw res;
-      }
-
-      github.log.info(`Removed old deploy key (${github_deploy_key_title})`);
-    }
-
-    const keypair = await generate_ssh_keypair(github_deploy_key_title);
-
-    res = await github.api("POST /repos/{owner}/{repo}/keys", {
-      fields: {
-        title: github_deploy_key_title,
-        key: keypair.publicKey,
-        read_only: true,
-      },
-    });
-
-    if (!res.ok) {
-      github.log.error(`Failed to add deploy key (${github_deploy_key_title})`);
-      throw res;
-    }
-
-    github.log.info(`Added deploy key (${github_deploy_key_title})`);
+    const keypair = await github.ensureDeployKey(github_deploy_key_title);
 
     body.remote.auth = {
       className: "RemoteRepositoryAuth.SSH",
@@ -292,12 +348,12 @@ async function init_jetbrains_space(repo) {
 
     res = await space.api(
       `POST /projects/${project_key}/repositories/test-connection`,
-      { body }
+      { body },
     );
 
     if (res.ok) {
       space.log.info(
-        `Successfully connected to remote ${body.remote.url} using deploy key`
+        `Successfully connected to remote ${body.remote.url} using deploy key`,
       );
       return keypair.privateKey;
     }
@@ -321,7 +377,7 @@ async function init_jetbrains_space(repo) {
     };
 
     settings.mirror.key = await get_mirror_repository_settings_mirror_key(
-      settings.mirror
+      settings.mirror,
     );
 
     if (settings.mirror.key) {
@@ -418,6 +474,10 @@ async function init_jetbrains_space(repo) {
 }
 
 const REMOTE_SERVICE = {
+  codeberg: {
+    init: init_codeberg,
+    has_auto_sync: false,
+  },
   gitlab: {
     init: init_gitlab,
     has_auto_sync: false,
@@ -465,7 +525,7 @@ switch (argv._[0]) {
   default: {
     if (
       Object.keys(REMOTE_SERVICE).some(
-        (remote) => !repo.remote[`origin-${remote}`]
+        (remote) => !repo.remote[`origin-${remote}`],
       )
     ) {
       await init(repo);

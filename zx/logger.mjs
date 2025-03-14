@@ -1,10 +1,10 @@
 export class Logger {
   #typeMap = {
-    '': '     ',
-    error: chalk.red('error'),
-    info: chalk.blue(' info'),
-    input: chalk.magenta('input'),
-    warn: chalk.yellow(' warn'),
+    "": "     ",
+    error: chalk.red("error"),
+    info: chalk.blue(" info"),
+    input: chalk.magenta("input"),
+    warn: chalk.yellow(" warn"),
   };
 
   constructor(service) {
@@ -14,17 +14,16 @@ export class Logger {
   fmt = (type, message) => {
     const string = [this.service, this.#typeMap[type], message]
       .filter(Boolean)
-      .join(' ');
-
+      .join(" ");
     return string;
   };
 
-  #log = (type, message) => {
-    console.log(this.fmt(type, message));
+  #log = (type, message, ...args) => {
+    console.log(this.fmt(type, message), ...args);
   };
 
-  error = (message) => this.#log('error', message);
-  info = (message) => this.#log('info', message);
-  log = (message) => this.#log('', message);
-  warn = (message) => this.#log('warn', message);
+  error = (message, ...args) => this.#log("error", message, ...args);
+  info = (message, ...args) => this.#log("info", message, ...args);
+  log = (message, ...args) => this.#log("", message, ...args);
+  warn = (message, ...args) => this.#log("warn", message, ...args);
 }

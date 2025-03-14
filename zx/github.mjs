@@ -2,6 +2,27 @@ import assert from "assert";
 import { CacheFile } from "./cache.mjs";
 import { Logger } from "./logger.mjs";
 
+const read_file = async (filename) => {
+  return await fs.readFile(filename, { encoding: "utf8" });
+};
+
+const generate_ssh_keypair = async (comment = "git-mirror") => {
+  const filename = "/tmp/git-mirror-key";
+
+  $`rm -f ${filename} ${filename}.pub`;
+
+  await $`ssh-keygen -t ed25519 -C ${comment} -N '' -f ${filename}`;
+
+  const [privateKey, publicKey] = await Promise.all([
+    read_file(filename),
+    read_file(`${filename}.pub`),
+  ]);
+
+  $`rm -f ${filename} ${filename}.pub`;
+
+  return { privateKey, publicKey };
+};
+
 export class GitHub {
   #cache;
 
@@ -18,6 +39,16 @@ export class GitHub {
     return this;
   };
 
+  /**
+   * @param {string} endpoint
+   * @param {object} [options]
+   * @param {Record<string, string>} [options.headers]
+   * @param {Record<string, string>} [options.fields]
+   * @param {Record<string, string>} [options.rawFields]
+   * @param {string} [options.jq]
+   * @param {boolean} [options.noParse]
+   * @param {string[]} [options.params]
+   */
   api = async (endpoint, options = {}) => {
     const params = [];
 
@@ -75,5 +106,45 @@ export class GitHub {
       data,
       error: ret.stderr ? { message: ret.stderr.trim() } : null,
     };
+  };
+
+  ensureDeployKey = async (title) => {
+    let res = await this.api("/repos/{owner}/{repo}/keys", {
+      jq: `.[] | select(.title=="${title}")`,
+    });
+
+    if (!res.ok) {
+      throw res;
+    }
+
+    if (res.data) {
+      res = await this.api(`DELETE /repos/{owner}/{repo}/keys/${res.data.id}`);
+
+      if (!res.ok) {
+        this.log.info(`Failed to remove old deploy key (${title})`);
+        throw res;
+      }
+
+      this.log.info(`Removed old deploy key (${title})`);
+    }
+
+    const keypair = await generate_ssh_keypair(title);
+
+    res = await this.api("POST /repos/{owner}/{repo}/keys", {
+      fields: {
+        title: title,
+        key: keypair.publicKey,
+        read_only: true,
+      },
+    });
+
+    if (!res.ok) {
+      this.log.error(`Failed to add deploy key (${title})`);
+      throw res;
+    }
+
+    this.log.info(`Added deploy key (${title})`);
+
+    return keypair;
   };
 }
