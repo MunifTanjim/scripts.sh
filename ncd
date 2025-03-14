@@ -52,8 +52,10 @@ ncd_workspace() {
 }
 
 __pyenv_init() {
-  eval "$(pyenv init -)"
-  eval "$(pyenv virtualenv-init -)"
+  if [[ "${PYENV_VIRTUAL_INIT:-}" != "1" ]]; then
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
+  fi
 }
 
 __pyenv_list_versions() {
@@ -71,11 +73,28 @@ __pyenv_is_version_installed() {
 }
 
 __pyenv_virtualenv_current() {
-  pyenv virtualenvs | grep "^* " | awk '{ print $2 }'
+  local name="$(basename "${PYENV_VIRTUAL_ENV:-}")"
+  if test -n "${name}"; then
+    echo "${name}"
+  else
+    pyenv virtualenvs | grep "^* " | awk '{ print $2 }'
+  fi
+}
+
+__pyenv_virtualenv_activate() {
+  local name="${1}"
+  if [[ "$(__pyenv_virtualenv_current)" = "${name}" ]]; then
+    return
+  fi
+  pyenv activate "${name}"
 }
 
 __ncd_is_inside_workspace_repo() {
   [[ "${PWD}" = "$(ncd workspace)"/* ]]
+}
+
+__ncd_is_container() {
+  ncd_list_container | grep -q "${1}"
 }
 
 __ncd_assert_inside_workspace_repo() {
@@ -85,8 +104,16 @@ __ncd_assert_inside_workspace_repo() {
   fi
 }
 
+__ncd_current_repo() {
+  if ! __ncd_is_inside_workspace_repo; then
+    echo ""
+  fi
+
+  echo "$(basename "$(git rev-parse --show-toplevel)")"
+}
+
 __ncd_py_venv_name() {
-  local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
+  local -r curr_repo="$(__ncd_current_repo)"
   local venv_name="nc-${curr_repo}"
   if [[ "${PWD}" != "$(ncd workspace)/${curr_repo}" ]]; then
     venv_name="${venv_name}${PWD:(($(ncd workspace | wc -c) + ${#curr_repo}))}"
@@ -274,19 +301,68 @@ ncd_off() {
   fi
 }
 
+__ncd_dc_list_commands() {
+  ncd_dc --help | sed '1,/Commands:/d' | sed '/^$/,$d' | sed 's/^  //' | cut -d' ' -f1
+}
+
 # ncd dc
 ncd_dc() {
   __pyenv_init
-  pyenv activate localdev
-  local cmd="${1}"
-  shift
+  __pyenv_virtualenv_activate localdev
+
+  local cmd="${1:-}"
+  shift || true
+
+  if test -z "${cmd}"; then
+    cmd="$(__ncd_dc_list_commands | fzf --header=Command)"
+  fi
+
+  local args=()
+  local containers=()
+
+  case "${cmd}" in
+  up | logs | restart)
+    while (("$#")); do
+      case "${1}" in
+      *)
+        if __ncd_is_container "${1}"; then
+          containers+=("${1}")
+        else
+          args+=("${1}")
+        fi
+        shift
+        ;;
+      esac
+    done
+    if test "${#containers[@]}" -eq 0; then
+      containers+=("$(__ncd_current_repo)")
+    fi
+    ;;
+  *)
+    while (("$#")); do
+      args+=("${1}")
+      shift
+    done
+    ;;
+  esac
 
   case "${cmd}" in
   logs)
-    exec nc-docker logs --no-log-prefix "$@"
+    if test "${#args[@]}" -eq 0; then
+      args+=("-f" "--tail" "1000")
+    fi
+    if test "${#containers[@]}" -eq 1; then
+      args+=("--no-log-prefix")
+    fi
+    ;;
+  esac
+
+  case "${cmd}" in
+  up | logs | restart)
+    exec nc-docker ${cmd} "${args[@]}" "${containers[@]}"
     ;;
   *)
-    exec nc-docker ${cmd} "$@"
+    exec nc-docker ${cmd} "${args[@]}"
     ;;
   esac
 }
@@ -342,7 +418,7 @@ ncd_repo() {
     if __ncd_is_inside_workspace_repo; then
       # already inside workspace repo
       local -r curr_tag="$(tmux show-option -w -qv '@ncd_repo_window')"
-      local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
+      local -r curr_repo="$(__ncd_current_repo)"
       if [[ -z "${curr_tag}" ]] || [[ "${curr_tag}" != "${curr_repo}" ]]; then
         # current window is untagged or tagged for a different repo
         __ncd_untag_current_repo_window
@@ -546,7 +622,7 @@ if ! type curl >/dev/null 2>&1; then
   apt-get -qq install curl >/dev/null 2>&1
 fi
 
-export ES_HOST=\$(cat /opt/article-query/conf/article-query.json | grep ELASTICSEARCH_7_HOST | cut -d'"' -f4)
+export ES_HOST=\$(cat /opt/article-query/conf/article-query.json | grep OPENSEARCH_2_HOST | cut -d'"' -f4)
 
 curl "http://\${ES_HOST}/${endpoint}" ${args[@]}
 EOF
@@ -612,8 +688,8 @@ ncd_git_pr-sync() {
       ' --jq ".data.repository.pullRequest.commits.nodes[] | map({ commit: .oid, message: .message })")"
     else
       local -r merged_at="$(echo "${pr_blob}" | jq -r '.mergedAt')"
-      local -r since="$(date --date="${merged_at} -40 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
-      local -r until="$(date --date="${merged_at}  +5 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
+      local -r since="$(date --date="${merged_at} -5 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
+      local -r until="$(date --date="${merged_at}  +90 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
 
       local -r jq_query=".data.repository.defaultBranchRef.target.history.nodes | map(select(.associatedPullRequests.nodes[0].number == ${pr_number})) | reverse | map({ commit: .oid, message: .message })"
       commits_blob="$(gh api graphql --paginate -f query='
