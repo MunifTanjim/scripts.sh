@@ -13,7 +13,7 @@ move() {
 }
 
 setup_for_darwin() {
-  echo 'brew "lf"' | brew bundle --no-lock --file=-
+  echo 'brew "lf"' | brew bundle --file=-
 }
 
 setup_for_debian() {
@@ -52,11 +52,14 @@ setup_for_debian() {
 }
 
 case "${OSTYPE}" in
-  darwin*)
-    setup_for_darwin;;
-  linux*)
-    setup_for_debian;;
-  *)
-    echo "Unknown OS!"
-    exit 1;;
+darwin*)
+  setup_for_darwin
+  ;;
+linux*)
+  setup_for_debian
+  ;;
+*)
+  echo "Unknown OS!"
+  exit 1
+  ;;
 esac

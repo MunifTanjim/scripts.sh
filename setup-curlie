@@ -16,7 +16,7 @@ setup_for_darwin() {
   echo '
     tap "rs/tap"
     brew "rs/tap/curlie"
-  ' | brew bundle --no-lock --file=-
+  ' | brew bundle --file=-
   brew install 
 }
 

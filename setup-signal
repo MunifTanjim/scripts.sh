@@ -3,7 +3,7 @@
 set -euo pipefail
 
 setup_for_darwin() {
-  echo 'cask "signal"' | brew bundle --no-lock --file=-
+  echo 'cask "signal"' | brew bundle --file=-
 }
 
 setup_for_debian() {

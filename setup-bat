@@ -17,7 +17,7 @@ ensure_tool() {
 setup_for_darwin() {
   ensure_tool brew
 
-  echo 'brew "bat"' | brew bundle --no-lock --file=-
+  echo 'brew "bat"' | brew bundle --file=-
 }
 
 setup_for_debian() {

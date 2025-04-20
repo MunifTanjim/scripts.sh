@@ -3,7 +3,7 @@
 set -euo pipefail
 
 setup_for_darwin() {
-  echo 'brew "awscli"' | brew bundle --no-lock --file=-
+  echo 'brew "awscli"' | brew bundle --file=-
 }
 
 setup_for_debian() {

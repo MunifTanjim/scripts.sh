@@ -3,7 +3,7 @@
 set -euo pipefail
 
 setup_for_darwin() {
-  echo 'brew "stripe/stripe-cli/stripe"' | brew bundle --no-lock --file=-
+  echo 'brew "stripe/stripe-cli/stripe"' | brew bundle --file=-
 }
 
 setup_for_debian() {

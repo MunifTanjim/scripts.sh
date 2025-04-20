@@ -82,7 +82,7 @@ setup_apt_packages() {
 
 setup_brew_packages() {
   echo "Installing packages: $*"
-  printf 'brew "%s"\n' $* |  brew bundle --no-lock --file=-
+  printf 'brew "%s"\n' $* |  brew bundle --file=-
 }
 
 link_binary() {

@@ -16,7 +16,7 @@ move() {
 }
 
 setup_for_darwin() {
-  echo 'brew "git-absorb"' | brew bundle --no-lock --file=-
+  echo 'brew "git-absorb"' | brew bundle --file=-
 }
 
 setup_for_debian() {

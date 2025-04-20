@@ -13,7 +13,7 @@ move() {
 }
 
 setup_for_darwin() {
-  echo 'brew "eza"' | brew bundle --no-lock --file=-
+  echo 'brew "eza"' | brew bundle --file=-
 }
 
 setup_for_debian() {

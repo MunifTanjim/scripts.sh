@@ -151,7 +151,7 @@ setup_music_binary() {
 
 if [[ $OSTYPE = darwin* ]]; then
   brew_bundle() {
-    echo "$brewfile" | brew bundle --no-lock --file=-
+    echo "$brewfile" | brew bundle --file=-
   }
 
   brewfile='

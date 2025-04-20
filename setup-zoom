@@ -17,7 +17,7 @@ ensure_tool() {
 setup_for_darwin() {
   ensure_tool brew
 
-  echo 'cask "zoom"' | brew bundle --no-lock --file=-
+  echo 'cask "zoom"' | brew bundle --file=-
 }
 
 setup_for_debian() {
