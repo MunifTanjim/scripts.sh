@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+move() {
+  local -r src="$1"
+  local -r dest="$2"
+  local -r dest_dir="$(dirname "$dest")"
+  if [ ! -d "${dest_dir}" ]; then
+    mkdir -p "${dest_dir}"
+  fi
+  mv "${src}" "${dest}"
+}
+
+declare pattern
+
+case $OSTYPE in
+darwin*)
+  pattern="ente-cli-v*-darwin-arm64.tar.gz"
+  ;;
+linux*)
+  pattern="ente-cli-v*-linux-amd64.tar.gz"
+  ;;
+*)
+  echo "Unknown OS!"
+  exit 1
+  ;;
+esac
+
+declare -r repo="ente-io/ente"
+
+echo "Searching for latest release..."
+
+declare latest_tag="$(gh release list --repo "${repo}" --exclude-drafts --exclude-pre-releases --json 'name' --jq '.[].name | select(. | startswith("auth"))' | head -1)"
+
+setup_for_darwin() {
+  cd "${TMPDIR}"
+
+  echo "Downloading disk image..."
+  gh release download "${latest_tag}" --repo "${repo}" --pattern "ente-auth-v*.dmg" --output - >ente-auth.dmg
+
+  echo "Mounting disk image..."
+  hdiutil attach ente-auth.dmg -mountpoint ./ente-auth
+
+  echo "Setting up: Ente Auth"
+  pushd ./ente-auth
+  cp -R "Ente Auth.app" "${HOME}/Applications/"
+  popd
+
+  echo "Cleaning up..."
+  hdiutil detach ./ente-auth
+}
+
+setup_for_debian() {
+  local -r prefix_path="${HOME}/.local"
+
+  gh release download "${latest_tag}" --repo "${repo}" --pattern "ente-auth-v*-x86_64.AppImage" --output - >"${prefix_path}/bin/ente-auth"
+}
+
+case "${OSTYPE}" in
+darwin*)
+  setup_for_darwin
+  ;;
+linux*)
+  setup_for_debian
+  ;;
+*)
+  echo "Unknown OS!"
+  exit 1
+  ;;
+esac
