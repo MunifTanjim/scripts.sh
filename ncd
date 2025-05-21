@@ -321,7 +321,7 @@ ncd_dc() {
   local containers=()
 
   case "${cmd}" in
-  up | logs | restart)
+  up | logs | restart | shell)
     while (("$#")); do
       case "${1}" in
       *)
@@ -358,7 +358,7 @@ ncd_dc() {
   esac
 
   case "${cmd}" in
-  up | logs | restart)
+  up | logs | restart | shell)
     exec nc-docker ${cmd} "${args[@]}" "${containers[@]}"
     ;;
   *)
@@ -688,7 +688,7 @@ ncd_git_pr-sync() {
       ' --jq ".data.repository.pullRequest.commits.nodes[] | map({ commit: .oid, message: .message })")"
     else
       local -r merged_at="$(echo "${pr_blob}" | jq -r '.mergedAt')"
-      local -r since="$(date --date="${merged_at} -5 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
+      local -r since="$(date --date="${merged_at} -30 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
       local -r until="$(date --date="${merged_at}  +90 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
 
       local -r jq_query=".data.repository.defaultBranchRef.target.history.nodes | map(select(.associatedPullRequests.nodes[0].number == ${pr_number})) | reverse | map({ commit: .oid, message: .message })"
@@ -724,7 +724,7 @@ ncd_git_pr-sync() {
       }' -F since="${since}" -F until="${until}" --jq "${jq_query}")"
     fi
 
-    if [[ -z "${commits_blob}" ]]; then
+    if [[ -z "${commits_blob}" ]] || [[ "${commits_blob}" = "[]" ]]; then
       echo "Failed to extract commits"
       exit 1
     fi
