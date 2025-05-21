@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+AUTOENV_FILE_ENTER="${AUTOENV_FILE_ENTER:-.autoenv.in.zsh}"
+AUTOENV_FILE_LEAVE="${AUTOENV_FILE_LEAVE:-.autoenv.out.zsh}"
+
+ensure_script_command() {
+  local -r script_file="${1}"
+  local -r cmd="${2}"
+
+  if ! test -f "${script_file}"; then
+    echo "${cmd}" >${script_file}
+    return
+  fi
+
+  if ! cat "${script_file}" | grep -q "${cmd}"; then
+    echo "${cmd}" >>${script_file}
+  fi
+}
+
+if test -f .venv/bin/activate; then
+  ensure_script_command "${AUTOENV_FILE_ENTER}" ". .venv/bin/activate"
+  ensure_script_command "${AUTOENV_FILE_LEAVE}" "deactivate"
+elif test -n "${PYENV_VERSION}"; then
+  ensure_script_command "${AUTOENV_FILE_ENTER}" "export PYENV_VERSION=${PYENV_VERSION}"
+  ensure_script_command "${AUTOENV_FILE_LEAVE}" "unset PYENV_VERSION"
+fi
