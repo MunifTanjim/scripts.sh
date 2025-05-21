@@ -9,41 +9,50 @@ declare repo_dir
 declare gh_flags=""
 declare git_flags=""
 
-while (( "$#" )); do
+echo_err() {
+  >&2 echo "$@"
+}
+
+while (("$#")); do
   case "$1" in
-    -u|--upstream-remote-name)
-      gh_flags="${gh_flags} ${1} ${2}"
-      shift 2;
-      ;;
-    --)
-      shift 1;
-      break
-      ;;
-    *)
-      if test -z "${owner}"; then
-        if [[ "${1}" = */* ]]; then
-          owner="${1%%/*}"
-          repo="${1##*/}"
-        else
-          owner="$(gh api graphql -f query="query{viewer{login}}" --jq ".data.viewer.login" | cat)"
-          repo="${1}"
-        fi
-      elif test -z "${repo_dir}"; then
-        repo_dir="${1}"
+  -u | --upstream-remote-name)
+    gh_flags="${gh_flags} ${1} ${2}"
+    shift 2
+    ;;
+  --)
+    shift 1
+    break
+    ;;
+  *)
+    if test -z "${owner}"; then
+      if [[ "${1}" = */* ]]; then
+        owner="${1%%/*}"
+        repo="${1##*/}"
       else
-        echo "unexpected argument"
-        exit 1
+        owner="$(gh api graphql -f query="query{viewer{login}}" --jq ".data.viewer.login" | cat)"
+        repo="${1}"
       fi
-      shift 1
-      ;;
+    elif test -z "${repo_dir}"; then
+      repo_dir="${1}"
+    else
+      echo_err "unexpected argument"
+      exit 1
+    fi
+    shift 1
+    ;;
   esac
 done
 
 if test -z "${owner}"; then
-  echo "missing argument: repository"
+  echo_err "missing argument: repository"
   exit 1
 fi
 
+declare parent_owner
+parent_owner="$(gh repo view "${owner}/${repo}" --json=parent --jq=.parent.owner.login)"
+if test -n "${parent_owner}"; then
+  repo_dir="${parent_owner}/${repo}"
+fi
 if test -z "${repo_dir}"; then
   repo_dir="${owner}/${repo}"
 fi
@@ -57,8 +66,12 @@ if ! test -d "$(dirname "${repo_dir}")"; then
 fi
 
 if test -d "${repo_dir}"; then
-  echo "${owner}/${repo} already exists!"
+  echo_err "${owner}/${repo} already exists!"
   exit 1
 fi
 
-exec gh repo clone "${owner}/${repo}" "${repo_dir}" ${gh_flags} -- ${git_flags}
+gh repo clone "${owner}/${repo}" "${repo_dir}" ${gh_flags} -- ${git_flags}
+
+echo_err
+echo ${repo_dir}
+echo_err
