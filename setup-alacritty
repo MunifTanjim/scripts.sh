@@ -31,11 +31,18 @@ pushd "${HOME}/Dev/github/${owner}/${repo}" >/dev/null
 post_setup_install_man_pages() {
   echo "Installing manual pages..."
   sudo mkdir -p /usr/local/share/man/man1
-  gzip -c extra/alacritty.man | sudo tee /usr/local/share/man/man1/alacritty.1.gz > /dev/null
-  gzip -c extra/alacritty-msg.man | sudo tee /usr/local/share/man/man1/alacritty-msg.1.gz > /dev/null
+  sudo mkdir -p /usr/local/share/man/man5
+
+  scdoc <extra/man/alacritty.1.scd | gzip -c | sudo tee /usr/local/share/man/man1/alacritty.1.gz >/dev/null
+  scdoc <extra/man/alacritty-msg.1.scd | gzip -c | sudo tee /usr/local/share/man/man1/alacritty-msg.1.gz >/dev/null
+  scdoc <extra/man/alacritty.5.scd | gzip -c | sudo tee /usr/local/share/man/man5/alacritty.5.gz >/dev/null
+  scdoc <extra/man/alacritty-bindings.5.scd | gzip -c | sudo tee /usr/local/share/man/man5/alacritty-bindings.5.gz >/dev/null
 }
 
 setup_for_darwin() {
+  echo "Installing dependencies..."
+  echo 'brew "scdoc"' | brew bundle --file=-
+
   echo "Building alacritty..."
   make app
 
@@ -72,12 +79,14 @@ setup_for_debian() {
 }
 
 case $OSTYPE in
-  darwin*)
-    setup_for_darwin;;
-  linux*)
-    setup_for_debian
-    ;;
-  *)
-    echo "Unknown OS!"
-    exit 1;;
+darwin*)
+  setup_for_darwin
+  ;;
+linux*)
+  setup_for_debian
+  ;;
+*)
+  echo "Unknown OS!"
+  exit 1
+  ;;
 esac
