@@ -25,10 +25,10 @@ assert_func() {
 
 _darwin_power() {
   case "${1:-"?"}" in
-    1|on)  blueutil --power 1;;
-    0|off) blueutil --power 0;;
-    ?)     blueutil --power  ;;
-    *)     exit 1            ;;
+  1 | on) blueutil --power 1 ;;
+  0 | off) blueutil --power 0 ;;
+  ?) blueutil --power ;;
+  *) exit 1 ;;
   esac
 }
 
@@ -39,19 +39,21 @@ _darwin_restart() {
 
 _darwin_connect() {
   local disconnect="no"
-  while (( "$#" )); do
+  while (("$#")); do
     case "${1}" in
-      --disconnect)
-        disconnect="yes"
-        shift;;
-      *)
-        shift;;
+    --disconnect)
+      disconnect="yes"
+      shift
+      ;;
+    *)
+      shift
+      ;;
     esac
   done
-    
+
   local -r blob="$(blueutil --format=json --paired)"
   local -r name="$(echo "${blob}" | jq -r '.[].name' | fzf)"
-  local -r id="$(echo "${blob}" | jq -r ".[] | select(.name =\"${name}\") | .address")"
+  local -r id="$(echo "${blob}" | jq -r ".[] | select(.name==\"${name}\") | .address")"
   if [[ "${disconnect}" = "yes" ]]; then
     blueutil --disconnect "${id}"
   fi
@@ -60,10 +62,10 @@ _darwin_connect() {
 
 _linux_power() {
   case "${1:-"?"}" in
-    1|on)  bluetoothctl power on;;
-    0|off) bluetoothctl power off;;
-    ?)     bluetoothctl show | grep --quiet "Powered: yes" && echo "1" || echo "0" ;;
-    *)     exit 1            ;;
+  1 | on) bluetoothctl power on ;;
+  0 | off) bluetoothctl power off ;;
+  ?) bluetoothctl show | grep --quiet "Powered: yes" && echo "1" || echo "0" ;;
+  *) exit 1 ;;
   esac
 }
 
@@ -81,13 +83,15 @@ _linux_restart() {
 
 _linux_connect() {
   local disconnect="no"
-  while (( "$#" )); do
+  while (("$#")); do
     case "${1}" in
-      --disconnect)
-        disconnect="yes"
-        shift;;
-      *)
-        shift;;
+    --disconnect)
+      disconnect="yes"
+      shift
+      ;;
+    *)
+      shift
+      ;;
     esac
   done
 
@@ -103,31 +107,33 @@ _linux_connect() {
 
 declare OS=""
 case "${OSTYPE}" in
-  darwin*)
-    assert_command blueutil
-    OS="darwin"
-    ;;
-  linux*)
-    assert_command bluetoothctl
-    OS="linux"
-    ;;
-  *)
-    echo "Unsupported OS!"
-    exit 1;;
+darwin*)
+  assert_command blueutil
+  OS="darwin"
+  ;;
+linux*)
+  assert_command bluetoothctl
+  OS="linux"
+  ;;
+*)
+  echo "Unsupported OS!"
+  exit 1
+  ;;
 esac
 
 declare -r cmd="${1:-"help"}"
 shift || true
 
 case "${cmd}" in
-  help)
-    cat << HELP
+help)
+  cat <<HELP
 USAGE:
   bluetooth power [0|1|on|off]
   bluetooth restart
   bluetooth connect
 HELP
-    exit 0
+  exit 0
+  ;;
 esac
 
 declare -r func="_${OS}_${cmd}"
