@@ -114,7 +114,7 @@ __ncd_arguments() {
               case "${state}" in
                 command)
                   _ncd_aws_apigateway_commands=()
-                  _ncd_aws_apigateway_commands+=("get-api-key" "get-usage-plan" "get-usage" "update-usage")
+                  _ncd_aws_apigateway_commands+=("get-api-key" "get-usage-plan" "list-usage-plans" "view-usage-plan" "change-usage-plan" "get-usage" "update-usage")
                   _describe -t commands "commands" _ncd_aws_apigateway_commands \
                     && ret=0
                   ;;
@@ -133,6 +133,27 @@ __ncd_arguments() {
                         '--key-id[API key ID]:key-id:' \
                         '--api-key[API key value]:api-key:' \
                         '--refresh[Force refresh cache]' \
+                        && ret=0
+                      ;;
+                    list-usage-plans)
+                      _arguments \
+                        '--region[AWS region]:region:' \
+                        '--refresh[Force refresh cache]' \
+                        && ret=0
+                      ;;
+                    view-usage-plan)
+                      _arguments \
+                        '--region[AWS region]:region:' \
+                        '--usage-plan-id[Usage plan ID]:usage-plan-id:' \
+                        '--refresh[Force refresh cache]' \
+                        && ret=0
+                      ;;
+                    change-usage-plan)
+                      _arguments \
+                        '--region[AWS region]:region:' \
+                        '--key-id[API key ID]:key-id:' \
+                        '--api-key[API key value]:api-key:' \
+                        '--usage-plan-id[Usage plan ID]:usage-plan-id:' \
                         && ret=0
                       ;;
                     get-usage)

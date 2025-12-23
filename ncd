@@ -179,7 +179,7 @@ __ncd_aws_apigateway_resolve_key_id() {
   echo -n "${key_id}"
 }
 
-# ncd aws:apigateway:get-api-key
+# ncd aws apigateway get-api-key
 ncd_aws_apigateway_get-api-key() {
   local region="" api_key=""
   local refresh="false"
@@ -211,7 +211,7 @@ ncd_aws_apigateway_get-api-key() {
   fi
   assert_val "${api_key}" "missing param: --api-key"
 
-  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_api-keys_${region}.json"
+  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_api-keys_${AWS_REGION}.json"
 
   if [[ "${refresh}" = "true" ]]; then
     rm -f "${cache_file}"
@@ -240,7 +240,7 @@ ncd_aws_apigateway_get-api-key() {
   echo -n "${key_id}"
 }
 
-# ncd aws:apigateway:get-usage-plan
+# ncd aws apigateway get-usage-plan
 ncd_aws_apigateway_get-usage-plan() {
   local region="" key_id="" api_key=""
   local refresh="false"
@@ -274,7 +274,7 @@ ncd_aws_apigateway_get-usage-plan() {
   key_id="$(__ncd_aws_apigateway_resolve_key_id "${key_id}" "${api_key}")"
   assert_val "${key_id}" "missing key-id"
 
-  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_usage-plans_${region}_${key_id}.json"
+  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_usage-plans_${AWS_REGION}_${key_id}.json"
 
   if [[ "${refresh}" = "true" ]]; then
     rm -f "${cache_file}"
@@ -306,7 +306,229 @@ ncd_aws_apigateway_get-usage-plan() {
   echo -n "${usage_plan_id}"
 }
 
-# ncd aws apigateway:get-usage
+# ncd aws apigateway list-usage-plans
+ncd_aws_apigateway_list-usage-plans() {
+  local region=""
+  local refresh="false"
+
+  while (("$#")); do
+    case "${1}" in
+    --region)
+      region="${2}"
+      shift 2
+      ;;
+    --refresh)
+      refresh="true"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+    esac
+  done
+
+  __ncd_aws_apigateway_resolve_region "${region}"
+
+  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_list-usage-plans_${AWS_REGION}.json"
+
+  if [[ "${refresh}" = "true" ]]; then
+    rm -f "${cache_file}"
+  fi
+
+  local result=""
+  if [[ "${refresh}" = "true" ]]; then
+    rm -f "${cache_file}"
+  elif [[ -f "${cache_file}" && -n "$(find "${cache_file}" -mmin -30)" ]]; then
+    result="$(cat "${cache_file}")"
+  fi
+
+  if [[ -z "${result}" ]]; then
+    result="$(aws apigateway get-usage-plans --output json)"
+
+    mkdir -p "$(dirname "${cache_file}")"
+    echo "${result}" >"${cache_file}"
+  fi
+
+  echo "${result}" | jq -r '.items[] | .id + " " + .name'
+}
+
+# ncd aws apigateway view-usage-plan
+ncd_aws_apigateway_view-usage-plan() {
+  local region="" usage_plan_id=""
+  local -a list_args=()
+
+  while (("$#")); do
+    case "${1}" in
+    --region)
+      region="${2}"
+      shift 2
+      ;;
+    --usage-plan-id)
+      usage_plan_id="${2}"
+      shift 2
+      ;;
+    --refresh)
+      list_args+=("--refresh")
+      shift
+      ;;
+    *)
+      shift
+      ;;
+    esac
+  done
+
+  __ncd_aws_apigateway_resolve_region "${region}"
+
+  if [[ -z "${usage_plan_id}" ]]; then
+    local selected
+    selected="$(ncd aws:apigateway:list-usage-plans "${list_args[@]}" | fzf --header="Usage Plan")"
+    assert_val "${selected}" "no usage plan selected"
+    usage_plan_id="$(echo "${selected}" | awk '{ print $1 }')"
+  else
+    ncd aws:apigateway:list-usage-plans "${list_args[@]}" >/dev/null
+  fi
+
+  assert_val "${usage_plan_id}" "missing usage-plan-id"
+
+  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_list-usage-plans_${AWS_REGION}.json"
+  cat "${cache_file}" | jq --arg id "${usage_plan_id}" '.items[] | select(.id == $id)'
+}
+
+# ncd aws apigateway change-usage-plan
+ncd_aws_apigateway_change-usage-plan() {
+  local region="" key_id="" api_key="" usage_plan_id=""
+
+  while (("$#")); do
+    case "${1}" in
+    --region)
+      region="${2}"
+      shift 2
+      ;;
+    --key-id)
+      key_id="${2}"
+      shift 2
+      ;;
+    --api-key)
+      api_key="${2}"
+      shift 2
+      ;;
+    --usage-plan-id)
+      usage_plan_id="${2}"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+    esac
+  done
+
+  __ncd_aws_apigateway_resolve_region "${region}"
+
+  key_id="$(__ncd_aws_apigateway_resolve_key_id "${key_id}" "${api_key}")"
+  assert_val "${key_id}" "missing key-id"
+
+  local current_plans
+  current_plans="$(aws apigateway get-usage-plans --key-id "${key_id}" --output json)"
+  local old_plan_id old_plan_name
+  old_plan_id="$(echo "${current_plans}" | jq -r '.items[0].id // ""')"
+  old_plan_name="$(echo "${current_plans}" | jq -r '.items[0].name // ""')"
+
+  if [[ -z "${usage_plan_id}" ]]; then
+    local selected
+    selected="$(ncd aws:apigateway:list-usage-plans | fzf --header="Select Usage Plan")"
+    assert_val "${selected}" "no usage plan selected"
+    usage_plan_id="$(echo "${selected}" | awk '{ print $1 }')"
+  fi
+  assert_val "${usage_plan_id}" "missing usage-plan-id"
+
+  if [[ "${old_plan_id}" = "${usage_plan_id}" ]]; then
+    echo_err "Key already in usage plan ${old_plan_name} (${old_plan_id})"
+    exit 0
+  fi
+
+  local new_plan_name
+  new_plan_name="$(ncd aws:apigateway:list-usage-plans | grep "^${usage_plan_id} " | cut -d' ' -f2-)"
+
+  if [[ -n "${old_plan_id}" ]]; then
+    local old_plan_data new_plan_data
+    old_plan_data="$(ncd aws:apigateway:view-usage-plan --usage-plan-id "${old_plan_id}")"
+    new_plan_data="$(ncd aws:apigateway:view-usage-plan --usage-plan-id "${usage_plan_id}")"
+
+    local old_file new_file
+    old_file="$(mktemp)"
+    new_file="$(mktemp)"
+
+    echo "${old_plan_data}" |
+      jq -r '
+        [
+          "Name:             " + .name,
+          "ID:               " + .id,
+          "Description:      " + (.description // "-"),
+          "Quota Limit:      " + (.quota.limit // "-" | tostring),
+          "Quota Period:     " + (.quota.period // "-"),
+          "Throttle Burst:   " + (.throttle.burstLimit // "-" | tostring),
+          "Throttle Rate:    " + (.throttle.rateLimit // "-" | tostring)
+        ] | .[]' >"${old_file}"
+
+    echo "${new_plan_data}" |
+      jq -r '
+        [
+          "Name:             " + .name,
+          "ID:               " + .id,
+          "Description:      " + (.description // "-"),
+          "Quota Limit:      " + (.quota.limit // "-" | tostring),
+          "Quota Period:     " + (.quota.period // "-"),
+          "Throttle Burst:   " + (.throttle.burstLimit // "-" | tostring),
+          "Throttle Rate:    " + (.throttle.rateLimit // "-" | tostring)
+        ] | .[]' >"${new_file}"
+
+    echo_err ""
+    git diff --no-index --color-words --no-prefix \
+      --src-prefix="Current:  " \
+      --dst-prefix="New:  " \
+      "${old_file}" "${new_file}" >&2 || true
+    echo_err ""
+
+    rm -f "${old_file}" "${new_file}"
+  else
+    echo_err ""
+    echo_err "New Usage Plan:"
+    ncd aws:apigateway:view-usage-plan --usage-plan-id "${usage_plan_id}" |
+      jq -r '
+        [
+          "  Name:             " + .name,
+          "  ID:               " + .id,
+          "  Description:      " + (.description // "-"),
+          "  Quota Limit:      " + (.quota.limit // "-" | tostring),
+          "  Quota Period:     " + (.quota.period // "-"),
+          "  Throttle Burst:   " + (.throttle.burstLimit // "-" | tostring),
+          "  Throttle Rate:    " + (.throttle.rateLimit // "-" | tostring)
+        ] | .[]' >&2
+    echo_err ""
+  fi
+
+  read -p "Change usage plan from '${old_plan_name}' to '${new_plan_name}'? [yN] " -n 1 -r
+  echo
+  case ${REPLY} in
+  y | Y) ;;
+  *) exit 1 ;;
+  esac
+
+  if [[ -n "${old_plan_id}" ]]; then
+    aws apigateway delete-usage-plan-key \
+      --usage-plan-id "${old_plan_id}" \
+      --key-id "${key_id}"
+    echo_err "Removed key from usage plan ${old_plan_name}"
+  fi
+
+  aws apigateway create-usage-plan-key \
+    --usage-plan-id "${usage_plan_id}" \
+    --key-id "${key_id}" \
+    --key-type "API_KEY"
+  echo_err "Added key to usage plan ${new_plan_name}"
+}
+
+# ncd aws apigateway get-usage
 ncd_aws_apigateway_get-usage() {
   local region="" usage_plan_id="" key_id="" start_date="" end_date="" api_key=""
   local refresh="false"
