@@ -36,6 +36,10 @@ assert_func() {
   fi
 }
 
+echo_err() {
+  >&2 echo "$@"
+}
+
 ncd_config() {
   assert_command rq
 
@@ -138,7 +142,7 @@ __ncd_cmd() {
   assert_val "${subcmd}" "missing param"
   shift
 
-  local -r func="ncd_${cmd}_${subcmd}"
+  local -r func="ncd_${cmd// /_}_${subcmd//:/_}"
   assert_func "${func}" "invalid param: ${subcmd}"
 
   $func "$@"
@@ -156,34 +160,374 @@ ncd_completion() {
   fi
 }
 
+AWS_CODEARTIFACT_TOKEN_CACHE_FILE="${HOME}/.nc_codeartifact_token"
+
+__ncd_aws_apigateway_resolve_region() {
+  local region="${1:-"${AWS_REGION:-"${AWS_DEFAULT_REGION:-"us-east-1"}"}"}"
+  export AWS_REGION="${region}"
+}
+
+__ncd_aws_apigateway_resolve_key_id() {
+  local key_id="${1}" api_key="${2}"
+  if [[ -z "${key_id}" ]]; then
+    if [[ -n "${api_key}" ]]; then
+      key_id="$(ncd aws:apigateway:get-api-key --api-key "${api_key}")"
+    else
+      key_id="$(ncd aws:apigateway:get-api-key)"
+    fi
+  fi
+  echo -n "${key_id}"
+}
+
+# ncd aws:apigateway:get-api-key
+ncd_aws_apigateway_get-api-key() {
+  local region="" api_key=""
+  local refresh="false"
+
+  while (("$#")); do
+    case "${1}" in
+    --region)
+      region="${2}"
+      shift 2
+      ;;
+    --api-key)
+      api_key="${2}"
+      shift 2
+      ;;
+    --refresh)
+      refresh="true"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+    esac
+  done
+
+  __ncd_aws_apigateway_resolve_region "${region}"
+
+  if [[ -z "${api_key}" ]]; then
+    read -e -p "API Key: " api_key
+  fi
+  assert_val "${api_key}" "missing param: --api-key"
+
+  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_api-keys_${region}.json"
+
+  if [[ "${refresh}" = "true" ]]; then
+    rm -f "${cache_file}"
+  fi
+
+  local result=""
+  if [[ "${refresh}" = "true" ]]; then
+    rm -f "${cache_file}"
+  elif [[ -f "${cache_file}" && -n "$(find "${cache_file}" -mmin -90)" ]]; then
+    result="$(cat "${cache_file}")"
+  fi
+
+  if [[ -z "${result}" ]]; then
+    result="$(aws apigateway get-api-keys \
+      --include-values \
+      --output json)"
+
+    mkdir -p "$(dirname "${cache_file}")"
+    echo "${result}" >"${cache_file}"
+  fi
+
+  local key_id
+  key_id="$(echo "${result}" | jq -r --arg api_key "${api_key}" '.items[] | select(.value == $api_key) | .id')"
+  assert_val "${key_id}" "api key not found: ${api_key}"
+
+  echo -n "${key_id}"
+}
+
+# ncd aws:apigateway:get-usage-plan
+ncd_aws_apigateway_get-usage-plan() {
+  local region="" key_id="" api_key=""
+  local refresh="false"
+
+  while (("$#")); do
+    case "${1}" in
+    --region)
+      region="${2}"
+      shift 2
+      ;;
+    --key-id)
+      key_id="${2}"
+      shift 2
+      ;;
+    --api-key)
+      api_key="${2}"
+      shift 2
+      ;;
+    --refresh)
+      refresh="true"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+    esac
+  done
+
+  __ncd_aws_apigateway_resolve_region "${region}"
+
+  key_id="$(__ncd_aws_apigateway_resolve_key_id "${key_id}" "${api_key}")"
+  assert_val "${key_id}" "missing key-id"
+
+  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_usage-plans_${region}_${key_id}.json"
+
+  if [[ "${refresh}" = "true" ]]; then
+    rm -f "${cache_file}"
+  fi
+
+  local result=""
+  if [[ "${refresh}" = "true" ]]; then
+    rm -f "${cache_file}"
+  elif [[ -f "${cache_file}" && -n "$(find "${cache_file}" -mmin -30)" ]]; then
+    result="$(cat "${cache_file}")"
+  fi
+
+  if [[ -z "${result}" ]]; then
+    result="$(aws apigateway get-usage-plans \
+      --key-id "${key_id}" \
+      --output json)"
+
+    mkdir -p "$(dirname "${cache_file}")"
+    echo "${result}" >"${cache_file}"
+  fi
+
+  local selected
+  selected="$(echo "${result}" | jq -r '.items[] | .id + " " + .name' | fzf --header="Usage Plan" --select-1)"
+  assert_val "${selected}" "no usage plan selected"
+
+  local usage_plan_id
+  usage_plan_id="$(echo "${selected}" | awk '{ print $1 }')"
+
+  echo -n "${usage_plan_id}"
+}
+
+# ncd aws apigateway:get-usage
+ncd_aws_apigateway_get-usage() {
+  local region="" usage_plan_id="" key_id="" start_date="" end_date="" api_key=""
+  local refresh="false"
+  local plot="false"
+
+  while (("$#")); do
+    case "${1}" in
+    --region)
+      region="${2}"
+      shift 2
+      ;;
+    --usage-plan-id)
+      usage_plan_id="${2}"
+      shift 2
+      ;;
+    --key-id)
+      key_id="${2}"
+      shift 2
+      ;;
+    --api-key)
+      api_key="${2}"
+      shift 2
+      ;;
+    --start-date)
+      start_date="${2}"
+      shift 2
+      ;;
+    --end-date)
+      end_date="${2}"
+      shift 2
+      ;;
+    --refresh)
+      refresh="true"
+      shift
+      ;;
+    --plot)
+      plot="true"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+    esac
+  done
+
+  __ncd_aws_apigateway_resolve_region "${region}"
+
+  key_id="$(__ncd_aws_apigateway_resolve_key_id "${key_id}" "${api_key}")"
+  assert_val "${key_id}" "missing key-id"
+
+  if [[ -z "${usage_plan_id}" ]]; then
+    usage_plan_id="$(ncd aws:apigateway:get-usage-plan --key-id "${key_id}")"
+  fi
+  assert_val "${usage_plan_id}" "missing usage-plan-id"
+
+  start_date="${start_date:-$(date +%Y-%m-01)}"
+  end_date="${end_date:-$(date +%Y-%m-%d)}"
+
+  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_get-usage_${usage_plan_id}_${key_id}_${start_date}_${end_date}.json"
+
+  local result=""
+  if [[ "${refresh}" = "true" ]]; then
+    rm -f "${cache_file}"
+  elif [[ -f "${cache_file}" && -n "$(find "${cache_file}" -mmin -30)" ]]; then
+    result="$(cat "${cache_file}")"
+  fi
+
+  if [[ -z "${result}" ]]; then
+    result="$(aws apigateway get-usage \
+      --usage-plan-id "${usage_plan_id}" \
+      --key-id "${key_id}" \
+      --start-date "${start_date}" \
+      --end-date "${end_date}")"
+
+    mkdir -p "$(dirname "${cache_file}")"
+    echo "${result}" >"${cache_file}"
+  fi
+
+  if [[ "${plot}" = "true" ]]; then
+    local max_used
+    max_used="$(echo "${result}" | jq -r '.items | to_entries[0].value | map(.[0]) | max')"
+
+    echo "${result}" |
+      jq -r '
+        (.startDate | split("-")[2] | tonumber) as $startDay |
+        (["Day", "Used", "Remaining"]),
+        (.items | to_entries[0].value | to_entries[] |
+          [($startDay + .key), .value[0], .value[1]]
+        ) | @tsv
+      ' |
+      uplot lineplots \
+        -H --fmt xyy \
+        -t "API Plan Usage" \
+        -w 80 \
+        -h 20 \
+        --grid \
+        --ylim "0,${max_used}"
+  else
+    echo "${result}"
+  fi
+}
+
+# ncd aws:apigateway:update-usage
+ncd_aws_apigateway_update-usage() {
+  local region="" usage_plan_id="" key_id="" api_key=""
+  local refresh="false"
+  local -a args=()
+
+  while (("$#")); do
+    case "${1}" in
+    --region)
+      region="${2}"
+      shift 2
+      ;;
+    --usage-plan-id)
+      usage_plan_id="${2}"
+      shift 2
+      ;;
+    --key-id)
+      key_id="${2}"
+      shift 2
+      ;;
+    --api-key)
+      api_key="${2}"
+      shift 2
+      ;;
+    --refresh)
+      refresh="true"
+      shift
+      ;;
+    *)
+      args+=("${1}")
+      shift
+      ;;
+    esac
+  done
+
+  __ncd_aws_apigateway_resolve_region "${region}"
+
+  key_id="$(__ncd_aws_apigateway_resolve_key_id "${key_id}" "${api_key}")"
+  assert_val "${key_id}" "missing key-id"
+
+  if [[ -z "${usage_plan_id}" ]]; then
+    usage_plan_id="$(ncd aws:apigateway:get-usage-plan --key-id "${key_id}")"
+  fi
+  assert_val "${usage_plan_id}" "missing usage-plan-id"
+
+  local -a get_usage_args=("--usage-plan-id" "${usage_plan_id}" "--key-id" "${key_id}")
+  [[ "${refresh}" = "true" ]] && get_usage_args+=("--refresh")
+
+  local current_usage
+  current_usage="$(ncd aws:apigateway:get-usage "${get_usage_args[@]}")"
+  local current_value
+  current_value="$(echo "${current_usage}" | jq -r ".items | to_entries[] | .value | last | .[1]")"
+
+  echo_err "Current Remaining: ${current_value}"
+
+  local value="${args[1]:-}"
+  if [[ -z "${value}" ]]; then
+    read -e -p "Replace Remaining: " value
+  fi
+  assert_val "${value}" "missing value"
+
+  read -p "Update to ${value}? [yN] " -n 1 -r
+  case ${REPLY} in
+  y | Y) ;;
+  *) exit 1 ;;
+  esac
+
+  # https://docs.aws.amazon.com/apigateway/latest/api/patch-operations.html#UpdateUsage-Patch
+  aws apigateway update-usage \
+    --usage-plan-id "${usage_plan_id}" \
+    --key-id "${key_id}" \
+    --patch-operations "op=replace,path=/remaining,value=${value}"
+}
+
 # ncd aws:codeartifact-auth-token
 ncd_aws_codeartifact-auth-token() {
   if [[ ! -e "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off" &&
-    ! (-f "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token" &&
-    -n "$(find "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token" -mmin -$((10 * 60)))") ]]; then
+    ! (-f "${AWS_CODEARTIFACT_TOKEN_CACHE_FILE}" &&
+    -n "$(find "${AWS_CODEARTIFACT_TOKEN_CACHE_FILE}" -mmin -$((10 * 60)))") ]]; then
     if aws sts get-caller-identity --query "Account" >/dev/null 2>&1; then
       AWS_CODEARTIFACT_AUTH_TOKEN="$(aws codeartifact get-authorization-token \
-        --duration-seconds "$((12 * 60 * 60))" \
+        --duration-seconds "$((10 * 60 * 60))" \
         --domain "$(ncd config aws.domain)" \
         --domain-owner "$(ncd config aws.domain_owner)" \
         --query authorizationToken \
         --output text)"
 
       if test -n "${AWS_CODEARTIFACT_AUTH_TOKEN}"; then
-        echo "${AWS_CODEARTIFACT_AUTH_TOKEN}" >"${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token"
+        echo -n "${AWS_CODEARTIFACT_AUTH_TOKEN}" >"${AWS_CODEARTIFACT_TOKEN_CACHE_FILE}"
       fi
     fi
   fi
 
-  cat "${XDG_CACHE_HOME}/newscred_aws_codeartifact_auth_token"
+  cat "${AWS_CODEARTIFACT_TOKEN_CACHE_FILE}"
 }
 
-ncd_on_aws() {
-  echo "Checking AWS Login Status..."
+# ncd aws apigateway
+ncd_aws_apigateway() {
+  ncd_aws_login
 
+  __ncd_cmd "aws apigateway" "$@"
+}
+
+# ncd aws login
+ncd_aws_login() {
   if ! aws sts get-caller-identity --query "Account" >/dev/null 2>&1; then
     aws sso login
   fi
+}
+
+# ncd aws
+ncd_aws() {
+  __ncd_cmd "aws" "$@"
+}
+
+ncd_on_aws() {
+  echo_err "Checking AWS Login Status..."
+
+  ncd aws login
 
   rm -f "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off"
 
@@ -191,7 +535,7 @@ ncd_on_aws() {
 }
 
 ncd_off_aws() {
-  echo "Turning Off AWS CodeArtifact Token Check..."
+  echo_err "Turning Off AWS CodeArtifact Token Check..."
 
   touch "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off"
 }
@@ -321,7 +665,7 @@ ncd_dc() {
   local containers=()
 
   case "${cmd}" in
-  up | logs | restart | shell)
+  build | up | logs | restart | shell)
     while (("$#")); do
       case "${1}" in
       *)
@@ -358,7 +702,7 @@ ncd_dc() {
   esac
 
   case "${cmd}" in
-  up | logs | restart | shell)
+  build | up | logs | restart | shell)
     exec nc-docker ${cmd} "${args[@]}" "${containers[@]}"
     ;;
   *)
@@ -524,25 +868,15 @@ __k8s_select_resources() {
 ncd_k8s_cp() {
   __k8s_select_resources --namespace --pod --container
 
-  local a="${1}" direction="${2}" b="${3}"
+  local src="${1}" dest="${2}"
 
-  if [[ "${direction}" = "to" ]]; then
-    kubectl cp "${a}" --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}:${b}" -c "${NCD_K8S_CONTAINER}"
-  elif [[ "${direction}" = "from" ]]; then
-    kubectl cp "${b}" --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}:${a}" -c "${NCD_K8S_CONTAINER}"
+  if [[ "${src:0:1}" = ":" ]]; then
+    kubectl cp "${NCD_K8S_POD}${src}" --namespace "${NCD_K8S_NAMESPACE}" "${dist}" -c "${NCD_K8S_CONTAINER}"
+  elif [[ "${dest:0:1}" = ":" ]]; then
+    kubectl cp "${src}" --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}${dist}" -c "${NCD_K8S_CONTAINER}"
   else
     exit 1
   fi
-}
-
-ncd_k8s_exec() {
-  __k8s_select_resources --namespace --pod --container
-
-  local cmd="${NCD_K8S_EXEC_CMD:-}"
-  read -e -p "Command: " -i "${cmd:-/bin/bash}" cmd
-  assert_val "${cmd}" "missing command"
-
-  kubectl exec --namespace "${NCD_K8S_NAMESPACE}" "${NCD_K8S_POD}" -c "${NCD_K8S_CONTAINER}" -it -- ${cmd}
 }
 
 ncd_k8s_exec() {
@@ -631,7 +965,7 @@ EOF
 
   export NCD_K8S_NAMESPACE=article-query NCD_K8S_POD=article-query- NCD_K8S_CONTAINER=article-query
 
-  ncd k8s cp /tmp/ncd_es_aqs_script to /tmp/ncd_es_aqs_script
+  ncd k8s cp /tmp/ncd_es_aqs_script :/tmp/ncd_es_aqs_script
 
   NCD_K8S_EXEC_CMD="/tmp/ncd_es_aqs_script" ncd k8s exec
 }
