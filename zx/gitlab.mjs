@@ -41,7 +41,7 @@ export class GitLab {
 
     this.log.log("For creating Personal Access Token, visit:");
     this.log.log(
-      `  https://gitlab.com/-/profile/personal_access_tokens?name=${os.hostname()}:cli:${
+      `  https://gitlab.com/-/user_settings/personal_access_tokens/legacy/new?name=${os.hostname()}:cli:${
         this.id
       }&scopes=api,read_user`
     );

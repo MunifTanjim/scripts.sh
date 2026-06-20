@@ -3,9 +3,7 @@
 
 import { URL } from "url";
 import { Codeberg } from "./zx/codeberg.mjs";
-import { GitHub } from "./zx/github.mjs";
 import { GitLab } from "./zx/gitlab.mjs";
-import { JetBrainsSpace } from "./zx/jetbrains-space.mjs";
 
 $.verbose = false;
 
@@ -86,16 +84,24 @@ async function refresh_repo_info(repo) {
 }
 
 async function ensure_git_mirror_remote(repo, name, remote_url) {
-  const url = new URL(remote_url);
+  const is_ssh = remote_url.startsWith("git@");
+  const host = is_ssh
+    ? remote_url.match(/^git@([^:]+):/)?.[1]
+    : new URL(remote_url).host;
+  const url = is_ssh ? remote_url : new URL(remote_url).href;
 
-  if (
-    repo.remote.origin.url.host === url.host ||
-    repo.remote[`origin-${name}`]
-  ) {
+  if (repo.remote.origin.url.host === host) {
     return;
   }
 
-  await $`git remote add origin-${name} ${url.href}`;
+  if (repo.remote[`origin-${name}`]) {
+    if (repo.remote[`origin-${name}`].url == url) {
+      return;
+    }
+    await $`git remote remove origin-${name}`;
+  }
+
+  await $`git remote add origin-${name} ${url}`;
 
   await refresh_repo_info(repo);
 }
@@ -303,174 +309,10 @@ async function init_gitlab(repo) {
   await ensure_git_mirror_remote(repo, "gitlab", remote_url);
 }
 
-async function init_jetbrains_space(repo) {
-  const space = await new JetBrainsSpace({
-    id: "git-mirror",
-    site: "muniftanjim",
-  }).init();
-
-  const project_key = "key:PERSONAL";
-  const base_url = `/projects/${project_key}/repositories/${repo.name}`;
-
-  async function get_mirror_repository_settings_mirror_key(mirror) {
-    const body = {
-      remote: {
-        url: mirror.url,
-      },
-    };
-
-    let res = await space.api(
-      `POST /projects/${project_key}/repositories/test-connection`,
-      { body },
-    );
-
-    if (!res.ok) {
-      throw res;
-    }
-
-    if (res.data.success) {
-      space.log.info(`Successfully connected to remote ${body.remote.url}`);
-      return null;
-    }
-
-    space.log.warn(res.data.reason.split("\n")[0]);
-
-    const github_deploy_key_title = "muniftanjim.jetbrains.space:mirror";
-
-    const github = new GitHub({ id: "git-mirror" });
-    const keypair = await github.ensureDeployKey(github_deploy_key_title);
-
-    body.remote.auth = {
-      className: "RemoteRepositoryAuth.SSH",
-      privateKey: keypair.privateKey,
-      passphrase: "",
-    };
-
-    res = await space.api(
-      `POST /projects/${project_key}/repositories/test-connection`,
-      { body },
-    );
-
-    if (res.ok) {
-      space.log.info(
-        `Successfully connected to remote ${body.remote.url} using deploy key`,
-      );
-      return keypair.privateKey;
-    }
-
-    space.log.error(`Failed to connect to remote: ${body.remote.url}`);
-    throw res;
-  }
-
-  const repo_description = `Mirroring: ${repo.remote.origin.url.href}`;
-  const get_mirror_repository_settings = async () => {
-    const settings = {
-      mirror: {
-        version: "",
-        url: `https://github.com/${repo.project}.git`,
-        detachHEAD: false,
-        fetchPeriodically: true,
-        fetchBeforeGitCall: true,
-        key: null,
-        mirrorPullRequest: false,
-      },
-    };
-
-    settings.mirror.key = await get_mirror_repository_settings_mirror_key(
-      settings.mirror,
-    );
-
-    if (settings.mirror.key) {
-      settings.mirror.url = `git@github.com:${repo.project}.git`;
-      settings.mirror.useAuthKey = true;
-      settings.mirror.keyPassphrase = "";
-    } else {
-      settings.mirror.url = `https://github.com/${repo.project}.git`;
-      settings.mirror.useAuthKey = null;
-      settings.mirror.keyPassphrase = null;
-    }
-
-    return { settings };
-  };
-
-  async function create_mirror() {
-    space.log.info(`Creating project: ${repo.name}...`);
-
-    const { settings } = await get_mirror_repository_settings(repo);
-
-    const info = {
-      description: repo_description,
-      remote: {
-        url: settings.mirror.url,
-        auth: settings.mirror.useAuthKey
-          ? {
-              className: "RemoteRepositoryAuth.SSH",
-              privateKey: settings.mirror.key,
-              passphrase: settings.mirror.keyPassphrase,
-            }
-          : null,
-      },
-      mirror: {
-        syncPeriodically: settings.mirror.fetchPeriodically,
-        syncOnFetch: settings.mirror.fetchBeforeGitCall,
-        mirrorPullRequest: settings.mirror.mirrorPullRequest,
-      },
-    };
-
-    const res = await space.api(`POST ${base_url}/migrate`, {
-      body: info,
-    });
-
-    if (res.ok) {
-      space.log.info(`Created project: ${repo.name}...`);
-    } else {
-      space.log.info(`Failed to create project: ${repo.name}...`);
-      throw res;
-    }
-  }
-
-  async function update_mirror() {
-    let res = await space.api(`POST ${base_url}/settings`, {
-      body: await get_mirror_repository_settings(),
-    });
-
-    if (!res.ok) {
-      throw res;
-    }
-
-    res = await space.api(`POST ${base_url}/description`, {
-      body: { description: repo_description },
-    });
-
-    if (!res.ok) {
-      throw res;
-    }
-  }
-
-  async function ensure_mirror() {
-    const res = await space.api(base_url);
-
-    if (res.ok) {
-      await update_mirror();
-      space.log.info(`Repository Found: ${res.data.name}`);
-      return;
-    }
-
-    await create_mirror();
-  }
-
-  async function get_remote_url() {
-    const res = await space.api(`${base_url}/url`);
-    if (!res.ok) {
-      throw res;
-    }
-    return res.data.httpUrl;
-  }
-
-  await ensure_mirror();
-
-  const remote_url = await get_remote_url();
-  await ensure_git_mirror_remote(repo, "jetbrains-space", remote_url);
+async function init_tangled(repo) {
+  const handle = "muniftanjim.dev";
+  const remote_url = `git@tangled.org:${handle}/${repo.name}`;
+  await ensure_git_mirror_remote(repo, "tangled", remote_url);
 }
 
 const REMOTE_SERVICE = {
@@ -482,24 +324,25 @@ const REMOTE_SERVICE = {
     init: init_gitlab,
     has_auto_sync: false,
   },
-  ["jetbrains-space"]: {
-    init: init_jetbrains_space,
-    has_auto_sync: true,
+  tangled: {
+    init: init_tangled,
+    has_auto_sync: false,
+    opt_in: true,
   },
 };
 
 async function init(repo) {
-  for (const remote of Object.values(REMOTE_SERVICE)) {
+  for (const remote of Object.values(enabled_services)) {
     await remote.init(repo);
   }
 }
 
 async function sync(repo) {
   $.verbose = true;
-  for (const remote of Object.keys(REMOTE_SERVICE)) {
+  for (const remote of Object.keys(enabled_services)) {
     if (
       !repo.remote[`origin-${remote}`] ||
-      REMOTE_SERVICE[remote].has_auto_sync
+      enabled_services[remote].has_auto_sync
     ) {
       continue;
     }
@@ -513,6 +356,15 @@ async function sync(repo) {
 
 const repo = await get_repo_info();
 
+// opt-in services are only included when their `--<name>` flag is passed
+// or their `origin-<name>` remote already exists
+const enabled_services = Object.fromEntries(
+  Object.entries(REMOTE_SERVICE).filter(
+    ([name, service]) =>
+      !service.opt_in || argv[name] || repo.remote[`origin-${name}`],
+  ),
+);
+
 switch (argv._[0]) {
   case "init": {
     await init(repo);
@@ -524,7 +376,7 @@ switch (argv._[0]) {
   }
   default: {
     if (
-      Object.keys(REMOTE_SERVICE).some(
+      Object.keys(enabled_services).some(
         (remote) => !repo.remote[`origin-${remote}`],
       )
     ) {
