@@ -33,12 +33,13 @@ function log.error() {
 declare -A default_completion_dir
 default_completion_dir[bash]="${XDG_DATA_HOME:-"${HOME}/.local/share"}/bash-completion/completions"
 default_completion_dir[fish]="${HOME}/.config/fish/completions"
-default_completion_dir[zsh]="${XDG_DATA_HOME:-"${HOME}/.local/share"}/zsh/completions"
+default_completion_dir[zsh]="${XDG_DATA_HOME:-"${HOME}/.local/share"}/zsh/site-functions"
 
 declare -A completion_generator_command_template
 completion_generator_command_template[alacritty:bash]="curl -fsSL https://raw.githubusercontent.com/alacritty/alacritty/master/extra/completions/{bin}.{shell}"
 completion_generator_command_template[alacritty]="curl -fsSL https://raw.githubusercontent.com/alacritty/alacritty/master/extra/completions/{filename}"
 completion_generator_command_template[apt-fast]="curl -fsSL https://raw.githubusercontent.com/ilikenwf/apt-fast/master/completions/{shell}/{filename}"
+completion_generator_command_template[atlas]="{bin} completion {shell}"
 completion_generator_command_template[atuin]="{bin} gen-completions --shell {shell}"
 completion_generator_command_template[bw]="{bin} completion --shell {shell}"
 completion_generator_command_template[cargo]="rustup completions {shell} {bin}"
@@ -63,9 +64,13 @@ completion_generator_command_template[luver]="{bin} completion {shell}"
 completion_generator_command_template[nc-docker:zsh]="cat ${DOTFILES}/.scripts.sh/completions/{filename}"
 completion_generator_command_template[ncd:zsh]="{bin} completion {shell}"
 completion_generator_command_template[netlify]="{bin} completion:generate --shell {shell}"
+completion_generator_command_template[ngrok:bash]="{bin} completion"
+completion_generator_command_template[ngrok:zsh]="{bin} completion"
 completion_generator_command_template[nvm:bash]="curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/{shell}_completion"
+completion_generator_command_template[opti-cmp]="{bin} completion {shell}"
 completion_generator_command_template[pnpm]="{bin} completion {shell}"
 completion_generator_command_template[poetry]="{bin} completions {shell}"
+completion_generator_command_template[pup]="{bin} completions {shell}"
 completion_generator_command_template[pyenv]="curl -fsSL https://raw.githubusercontent.com/pyenv/pyenv/master/completions/{bin}.{shell}"
 completion_generator_command_template[rbenv:bash]="curl -fsSL https://raw.githubusercontent.com/rbenv/rbenv/master/completions/{bin}.{shell}"
 completion_generator_command_template[rbenv:zsh]="curl -fsSL https://raw.githubusercontent.com/rbenv/rbenv/master/completions/{filename}"
@@ -75,6 +80,7 @@ completion_generator_command_template[snap]="curl -fsSL https://raw.githubuserco
 completion_generator_command_template[starship]="{bin} completions {shell}"
 completion_generator_command_template[stripe]="{bin} completion --shell {shell} --write-to-stdout"
 completion_generator_command_template[volta]="{bin} completions {shell}"
+completion_generator_command_template[tailscale]="{bin} completion {shell}"
 completion_generator_command_template[warp-cli]="{bin} generate-completions {shell}"
 
 declare -a valid_shells=("bash" "fish" "zsh")
