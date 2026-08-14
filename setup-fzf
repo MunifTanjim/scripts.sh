@@ -22,7 +22,11 @@ function get_latest_reposiotry() {
   popd >/dev/null
 }
 
-function setup_fzf() {
+setup_for_darwin() {
+  echo 'brew "fzf"' | brew bundle --file=-
+}
+
+function setup_for_debian() {
   get_latest_reposiotry "https://github.com/junegunn/fzf" "${HOME}/.local/share/fzf"
   pushd "${HOME}/.local/share/fzf" >/dev/null
 
@@ -30,4 +34,19 @@ function setup_fzf() {
   ./install --xdg --completion --key-bindings --no-update-rc
 }
 
-setup_fzf
+setup() {
+  case "${OSTYPE}" in
+  darwin*)
+    setup_for_darwin
+    ;;
+  linux*)
+    setup_for_debian
+    ;;
+  *)
+    echo "Unknown OS!"
+    exit 1
+    ;;
+  esac
+}
+
+setup
