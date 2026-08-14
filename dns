@@ -31,6 +31,10 @@ _darwin_restart() {
   sudo killall -HUP mDNSResponder
 }
 
+_darwin_set-server() {
+  sudo networksetup -setdnsservers "$(sudo networksetup -listallnetworkservices | tail -n +2 | grep -v '*' | fzf --select-1)" "${@}"
+}
+
 _linux_flush() {
   sudo resolvectl flush-caches
 }
@@ -39,30 +43,38 @@ _linux_restart() {
   sudo systemctl restart systemd-resolved
 }
 
+_linux_set-server() {
+  echo "not supported"
+  exit 1
+}
+
 declare OS=""
 case "${OSTYPE}" in
-  darwin*)
-    OS="darwin"
-    ;;
-  linux*)
-    OS="linux"
-    ;;
-  *)
-    echo "Unsupported OS!"
-    exit 1;;
+darwin*)
+  OS="darwin"
+  ;;
+linux*)
+  OS="linux"
+  ;;
+*)
+  echo "Unsupported OS!"
+  exit 1
+  ;;
 esac
 
 declare -r cmd="${1:-"help"}"
 shift || true
 
 case "${cmd}" in
-  help)
-    cat << HELP
+help)
+  cat <<HELP
 USAGE:
   dns flush
   dns restart
+  dns set-server
 HELP
-    exit 0
+  exit 0
+  ;;
 esac
 
 declare -r func="_${OS}_${cmd}"
