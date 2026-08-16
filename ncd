@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-declare GITHUB_USERNAME="MunifTanjim"
-
 command_exists() {
   type "${1}" >/dev/null 2>&1
 }
@@ -47,12 +45,8 @@ ncd_config() {
   echo "${blob}" | jq -r ".${1:-""}"
 }
 
-ncd_workspace() {
-  assert_command rq
-
-  local dir="$(cat ~/.newscred.yaml | rq --input-yaml | jq -r '.workspace')"
-  dir="${dir/#\~/${HOME}}"
-  echo "${dir}"
+__ncd_workspace() {
+  opti-cmp workspace dir
 }
 
 __pyenv_init() {
@@ -94,7 +88,7 @@ __pyenv_virtualenv_activate() {
 }
 
 __ncd_is_inside_workspace_repo() {
-  [[ "${PWD}" = "$(ncd workspace)"/* ]]
+  [[ "${PWD}" = "$(__ncd_workspace)"/* ]]
 }
 
 __ncd_is_container() {
@@ -119,8 +113,8 @@ __ncd_current_repo() {
 __ncd_py_venv_name() {
   local -r curr_repo="$(__ncd_current_repo)"
   local venv_name="nc-${curr_repo}"
-  if [[ "${PWD}" != "$(ncd workspace)/${curr_repo}" ]]; then
-    venv_name="${venv_name}${PWD:(($(ncd workspace | wc -c) + ${#curr_repo}))}"
+  if [[ "${PWD}" != "$(__ncd_workspace)/${curr_repo}" ]]; then
+    venv_name="${venv_name}${PWD:(($(__ncd_workspace | wc -c) + ${#curr_repo}))}"
     venv_name="${venv_name//\//-}"
   fi
   echo "${venv_name}"
@@ -162,582 +156,12 @@ ncd_completion() {
 
 AWS_CODEARTIFACT_TOKEN_CACHE_FILE="${HOME}/.nc_codeartifact_token"
 
-__ncd_aws_apigateway_resolve_region() {
-  local region="${1:-"${AWS_REGION:-"${AWS_DEFAULT_REGION:-"us-east-1"}"}"}"
-  export AWS_REGION="${region}"
-}
-
-__ncd_aws_apigateway_resolve_key_id() {
-  local key_id="${1}" api_key="${2}"
-  if [[ -z "${key_id}" ]]; then
-    if [[ -n "${api_key}" ]]; then
-      key_id="$(ncd aws:apigateway:get-api-key --api-key "${api_key}")"
-    else
-      key_id="$(ncd aws:apigateway:get-api-key)"
-    fi
-  fi
-  echo -n "${key_id}"
-}
-
-# ncd aws apigateway get-api-key
-ncd_aws_apigateway_get-api-key() {
-  local region="" api_key=""
-  local refresh="false"
-
-  while (("$#")); do
-    case "${1}" in
-    --region)
-      region="${2}"
-      shift 2
-      ;;
-    --api-key)
-      api_key="${2}"
-      shift 2
-      ;;
-    --refresh)
-      refresh="true"
-      shift
-      ;;
-    *)
-      shift
-      ;;
-    esac
-  done
-
-  __ncd_aws_apigateway_resolve_region "${region}"
-
-  if [[ -z "${api_key}" ]]; then
-    read -e -p "API Key: " api_key
-  fi
-  assert_val "${api_key}" "missing param: --api-key"
-
-  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_api-keys_${AWS_REGION}.json"
-
-  if [[ "${refresh}" = "true" ]]; then
-    rm -f "${cache_file}"
-  fi
-
-  local result=""
-  if [[ "${refresh}" = "true" ]]; then
-    rm -f "${cache_file}"
-  elif [[ -f "${cache_file}" && -n "$(find "${cache_file}" -mmin -90)" ]]; then
-    result="$(cat "${cache_file}")"
-  fi
-
-  if [[ -z "${result}" ]]; then
-    result="$(aws apigateway get-api-keys \
-      --include-values \
-      --output json)"
-
-    mkdir -p "$(dirname "${cache_file}")"
-    echo "${result}" >"${cache_file}"
-  fi
-
-  local key_id
-  key_id="$(echo "${result}" | jq -r --arg api_key "${api_key}" '.items[] | select(.value == $api_key) | .id')"
-  assert_val "${key_id}" "api key not found: ${api_key}"
-
-  echo -n "${key_id}"
-}
-
-# ncd aws apigateway get-usage-plan
-ncd_aws_apigateway_get-usage-plan() {
-  local region="" key_id="" api_key=""
-  local refresh="false"
-
-  while (("$#")); do
-    case "${1}" in
-    --region)
-      region="${2}"
-      shift 2
-      ;;
-    --key-id)
-      key_id="${2}"
-      shift 2
-      ;;
-    --api-key)
-      api_key="${2}"
-      shift 2
-      ;;
-    --refresh)
-      refresh="true"
-      shift
-      ;;
-    *)
-      shift
-      ;;
-    esac
-  done
-
-  __ncd_aws_apigateway_resolve_region "${region}"
-
-  key_id="$(__ncd_aws_apigateway_resolve_key_id "${key_id}" "${api_key}")"
-  assert_val "${key_id}" "missing key-id"
-
-  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_usage-plans_${AWS_REGION}_${key_id}.json"
-
-  if [[ "${refresh}" = "true" ]]; then
-    rm -f "${cache_file}"
-  fi
-
-  local result=""
-  if [[ "${refresh}" = "true" ]]; then
-    rm -f "${cache_file}"
-  elif [[ -f "${cache_file}" && -n "$(find "${cache_file}" -mmin -30)" ]]; then
-    result="$(cat "${cache_file}")"
-  fi
-
-  if [[ -z "${result}" ]]; then
-    result="$(aws apigateway get-usage-plans \
-      --key-id "${key_id}" \
-      --output json)"
-
-    mkdir -p "$(dirname "${cache_file}")"
-    echo "${result}" >"${cache_file}"
-  fi
-
-  local selected
-  selected="$(echo "${result}" | jq -r '.items[] | .id + " " + .name' | fzf --header="Usage Plan" --select-1)"
-  assert_val "${selected}" "no usage plan selected"
-
-  local usage_plan_id
-  usage_plan_id="$(echo "${selected}" | awk '{ print $1 }')"
-
-  echo -n "${usage_plan_id}"
-}
-
-# ncd aws apigateway list-usage-plans
-ncd_aws_apigateway_list-usage-plans() {
-  local region=""
-  local refresh="false"
-
-  while (("$#")); do
-    case "${1}" in
-    --region)
-      region="${2}"
-      shift 2
-      ;;
-    --refresh)
-      refresh="true"
-      shift
-      ;;
-    *)
-      shift
-      ;;
-    esac
-  done
-
-  __ncd_aws_apigateway_resolve_region "${region}"
-
-  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_list-usage-plans_${AWS_REGION}.json"
-
-  if [[ "${refresh}" = "true" ]]; then
-    rm -f "${cache_file}"
-  fi
-
-  local result=""
-  if [[ "${refresh}" = "true" ]]; then
-    rm -f "${cache_file}"
-  elif [[ -f "${cache_file}" && -n "$(find "${cache_file}" -mmin -30)" ]]; then
-    result="$(cat "${cache_file}")"
-  fi
-
-  if [[ -z "${result}" ]]; then
-    result="$(aws apigateway get-usage-plans --output json)"
-
-    mkdir -p "$(dirname "${cache_file}")"
-    echo "${result}" >"${cache_file}"
-  fi
-
-  echo "${result}" | jq -r '.items[] | .id + " " + .name'
-}
-
-# ncd aws apigateway view-usage-plan
-ncd_aws_apigateway_view-usage-plan() {
-  local region="" usage_plan_id=""
-  local -a list_args=()
-
-  while (("$#")); do
-    case "${1}" in
-    --region)
-      region="${2}"
-      shift 2
-      ;;
-    --usage-plan-id)
-      usage_plan_id="${2}"
-      shift 2
-      ;;
-    --refresh)
-      list_args+=("--refresh")
-      shift
-      ;;
-    *)
-      shift
-      ;;
-    esac
-  done
-
-  __ncd_aws_apigateway_resolve_region "${region}"
-
-  if [[ -z "${usage_plan_id}" ]]; then
-    local selected
-    selected="$(ncd aws:apigateway:list-usage-plans "${list_args[@]}" | fzf --header="Usage Plan")"
-    assert_val "${selected}" "no usage plan selected"
-    usage_plan_id="$(echo "${selected}" | awk '{ print $1 }')"
-  else
-    ncd aws:apigateway:list-usage-plans "${list_args[@]}" >/dev/null
-  fi
-
-  assert_val "${usage_plan_id}" "missing usage-plan-id"
-
-  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_list-usage-plans_${AWS_REGION}.json"
-  cat "${cache_file}" | jq --arg id "${usage_plan_id}" '.items[] | select(.id == $id)'
-}
-
-# ncd aws apigateway change-usage-plan
-ncd_aws_apigateway_change-usage-plan() {
-  local region="" key_id="" api_key="" usage_plan_id=""
-
-  while (("$#")); do
-    case "${1}" in
-    --region)
-      region="${2}"
-      shift 2
-      ;;
-    --key-id)
-      key_id="${2}"
-      shift 2
-      ;;
-    --api-key)
-      api_key="${2}"
-      shift 2
-      ;;
-    --usage-plan-id)
-      usage_plan_id="${2}"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-    esac
-  done
-
-  __ncd_aws_apigateway_resolve_region "${region}"
-
-  key_id="$(__ncd_aws_apigateway_resolve_key_id "${key_id}" "${api_key}")"
-  assert_val "${key_id}" "missing key-id"
-
-  local current_plans
-  current_plans="$(aws apigateway get-usage-plans --key-id "${key_id}" --output json)"
-  local old_plan_id old_plan_name
-  old_plan_id="$(echo "${current_plans}" | jq -r '.items[0].id // ""')"
-  old_plan_name="$(echo "${current_plans}" | jq -r '.items[0].name // ""')"
-
-  if [[ -z "${usage_plan_id}" ]]; then
-    local selected
-    selected="$(ncd aws:apigateway:list-usage-plans | fzf --header="Select Usage Plan")"
-    assert_val "${selected}" "no usage plan selected"
-    usage_plan_id="$(echo "${selected}" | awk '{ print $1 }')"
-  fi
-  assert_val "${usage_plan_id}" "missing usage-plan-id"
-
-  if [[ "${old_plan_id}" = "${usage_plan_id}" ]]; then
-    echo_err "Key already in usage plan ${old_plan_name} (${old_plan_id})"
-    exit 0
-  fi
-
-  local new_plan_name
-  new_plan_name="$(ncd aws:apigateway:list-usage-plans | grep "^${usage_plan_id} " | cut -d' ' -f2-)"
-
-  if [[ -n "${old_plan_id}" ]]; then
-    local old_plan_data new_plan_data
-    old_plan_data="$(ncd aws:apigateway:view-usage-plan --usage-plan-id "${old_plan_id}")"
-    new_plan_data="$(ncd aws:apigateway:view-usage-plan --usage-plan-id "${usage_plan_id}")"
-
-    local old_file new_file
-    old_file="$(mktemp)"
-    new_file="$(mktemp)"
-
-    echo "${old_plan_data}" |
-      jq -r '
-        [
-          "Name:             " + .name,
-          "ID:               " + .id,
-          "Description:      " + (.description // "-"),
-          "Quota Limit:      " + (.quota.limit // "-" | tostring),
-          "Quota Period:     " + (.quota.period // "-"),
-          "Throttle Burst:   " + (.throttle.burstLimit // "-" | tostring),
-          "Throttle Rate:    " + (.throttle.rateLimit // "-" | tostring)
-        ] | .[]' >"${old_file}"
-
-    echo "${new_plan_data}" |
-      jq -r '
-        [
-          "Name:             " + .name,
-          "ID:               " + .id,
-          "Description:      " + (.description // "-"),
-          "Quota Limit:      " + (.quota.limit // "-" | tostring),
-          "Quota Period:     " + (.quota.period // "-"),
-          "Throttle Burst:   " + (.throttle.burstLimit // "-" | tostring),
-          "Throttle Rate:    " + (.throttle.rateLimit // "-" | tostring)
-        ] | .[]' >"${new_file}"
-
-    echo_err ""
-    git diff --no-index --color-words --no-prefix \
-      --src-prefix="Current:  " \
-      --dst-prefix="New:  " \
-      "${old_file}" "${new_file}" >&2 || true
-    echo_err ""
-
-    rm -f "${old_file}" "${new_file}"
-  else
-    echo_err ""
-    echo_err "New Usage Plan:"
-    ncd aws:apigateway:view-usage-plan --usage-plan-id "${usage_plan_id}" |
-      jq -r '
-        [
-          "  Name:             " + .name,
-          "  ID:               " + .id,
-          "  Description:      " + (.description // "-"),
-          "  Quota Limit:      " + (.quota.limit // "-" | tostring),
-          "  Quota Period:     " + (.quota.period // "-"),
-          "  Throttle Burst:   " + (.throttle.burstLimit // "-" | tostring),
-          "  Throttle Rate:    " + (.throttle.rateLimit // "-" | tostring)
-        ] | .[]' >&2
-    echo_err ""
-  fi
-
-  read -p "Change usage plan from '${old_plan_name}' to '${new_plan_name}'? [yN] " -n 1 -r
-  echo
-  case ${REPLY} in
-  y | Y) ;;
-  *) exit 1 ;;
-  esac
-
-  if [[ -n "${old_plan_id}" ]]; then
-    aws apigateway delete-usage-plan-key \
-      --usage-plan-id "${old_plan_id}" \
-      --key-id "${key_id}"
-    echo_err "Removed key from usage plan ${old_plan_name}"
-  fi
-
-  aws apigateway create-usage-plan-key \
-    --usage-plan-id "${usage_plan_id}" \
-    --key-id "${key_id}" \
-    --key-type "API_KEY"
-  echo_err "Added key to usage plan ${new_plan_name}"
-}
-
-# ncd aws apigateway get-usage
-ncd_aws_apigateway_get-usage() {
-  local region="" usage_plan_id="" key_id="" start_date="" end_date="" api_key=""
-  local refresh="false"
-  local plot="false"
-
-  while (("$#")); do
-    case "${1}" in
-    --region)
-      region="${2}"
-      shift 2
-      ;;
-    --usage-plan-id)
-      usage_plan_id="${2}"
-      shift 2
-      ;;
-    --key-id)
-      key_id="${2}"
-      shift 2
-      ;;
-    --api-key)
-      api_key="${2}"
-      shift 2
-      ;;
-    --start-date)
-      start_date="${2}"
-      shift 2
-      ;;
-    --end-date)
-      end_date="${2}"
-      shift 2
-      ;;
-    --refresh)
-      refresh="true"
-      shift
-      ;;
-    --plot)
-      plot="true"
-      shift
-      ;;
-    *)
-      shift
-      ;;
-    esac
-  done
-
-  __ncd_aws_apigateway_resolve_region "${region}"
-
-  key_id="$(__ncd_aws_apigateway_resolve_key_id "${key_id}" "${api_key}")"
-  assert_val "${key_id}" "missing key-id"
-
-  if [[ -z "${usage_plan_id}" ]]; then
-    usage_plan_id="$(ncd aws:apigateway:get-usage-plan --key-id "${key_id}")"
-  fi
-  assert_val "${usage_plan_id}" "missing usage-plan-id"
-
-  start_date="${start_date:-$(date +%Y-%m-01)}"
-  end_date="${end_date:-$(date +%Y-%m-%d)}"
-
-  local -r cache_file="${XDG_CACHE_HOME}/ncd/aws_apigateway_get-usage_${usage_plan_id}_${key_id}_${start_date}_${end_date}.json"
-
-  local result=""
-  if [[ "${refresh}" = "true" ]]; then
-    rm -f "${cache_file}"
-  elif [[ -f "${cache_file}" && -n "$(find "${cache_file}" -mmin -30)" ]]; then
-    result="$(cat "${cache_file}")"
-  fi
-
-  if [[ -z "${result}" ]]; then
-    result="$(aws apigateway get-usage \
-      --usage-plan-id "${usage_plan_id}" \
-      --key-id "${key_id}" \
-      --start-date "${start_date}" \
-      --end-date "${end_date}")"
-
-    mkdir -p "$(dirname "${cache_file}")"
-    echo "${result}" >"${cache_file}"
-  fi
-
-  if [[ "${plot}" = "true" ]]; then
-    local max_used
-    max_used="$(echo "${result}" | jq -r '.items | to_entries[0].value | map(.[0]) | max')"
-
-    echo "${result}" |
-      jq -r '
-        (.startDate | split("-")[2] | tonumber) as $startDay |
-        (["Day", "Used", "Remaining"]),
-        (.items | to_entries[0].value | to_entries[] |
-          [($startDay + .key), .value[0], .value[1]]
-        ) | @tsv
-      ' |
-      uplot lineplots \
-        -H --fmt xyy \
-        -t "API Plan Usage" \
-        -w 80 \
-        -h 20 \
-        --grid \
-        --ylim "0,${max_used}"
-  else
-    echo "${result}"
-  fi
-}
-
-# ncd aws:apigateway:update-usage
-ncd_aws_apigateway_update-usage() {
-  local region="" usage_plan_id="" key_id="" api_key=""
-  local refresh="false"
-  local -a args=()
-
-  while (("$#")); do
-    case "${1}" in
-    --region)
-      region="${2}"
-      shift 2
-      ;;
-    --usage-plan-id)
-      usage_plan_id="${2}"
-      shift 2
-      ;;
-    --key-id)
-      key_id="${2}"
-      shift 2
-      ;;
-    --api-key)
-      api_key="${2}"
-      shift 2
-      ;;
-    --refresh)
-      refresh="true"
-      shift
-      ;;
-    *)
-      args+=("${1}")
-      shift
-      ;;
-    esac
-  done
-
-  __ncd_aws_apigateway_resolve_region "${region}"
-
-  key_id="$(__ncd_aws_apigateway_resolve_key_id "${key_id}" "${api_key}")"
-  assert_val "${key_id}" "missing key-id"
-
-  if [[ -z "${usage_plan_id}" ]]; then
-    usage_plan_id="$(ncd aws:apigateway:get-usage-plan --key-id "${key_id}")"
-  fi
-  assert_val "${usage_plan_id}" "missing usage-plan-id"
-
-  local -a get_usage_args=("--usage-plan-id" "${usage_plan_id}" "--key-id" "${key_id}")
-  [[ "${refresh}" = "true" ]] && get_usage_args+=("--refresh")
-
-  local current_usage
-  current_usage="$(ncd aws:apigateway:get-usage "${get_usage_args[@]}")"
-  local current_value
-  current_value="$(echo "${current_usage}" | jq -r ".items | to_entries[] | .value | last | .[1]")"
-
-  echo_err "Current Remaining: ${current_value}"
-
-  local value="${args[1]:-}"
-  if [[ -z "${value}" ]]; then
-    read -e -p "Replace Remaining: " value
-  fi
-  assert_val "${value}" "missing value"
-
-  read -p "Update to ${value}? [yN] " -n 1 -r
-  case ${REPLY} in
-  y | Y) ;;
-  *) exit 1 ;;
-  esac
-
-  # https://docs.aws.amazon.com/apigateway/latest/api/patch-operations.html#UpdateUsage-Patch
-  aws apigateway update-usage \
-    --usage-plan-id "${usage_plan_id}" \
-    --key-id "${key_id}" \
-    --patch-operations "op=replace,path=/remaining,value=${value}"
-}
-
 # ncd aws:codeartifact-auth-token
 ncd_aws_codeartifact-auth-token() {
-  if [[ ! -e "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off" &&
-    ! (-f "${AWS_CODEARTIFACT_TOKEN_CACHE_FILE}" &&
-    -n "$(find "${AWS_CODEARTIFACT_TOKEN_CACHE_FILE}" -mmin -$((10 * 60)))") ]]; then
-    if aws sts get-caller-identity --query "Account" >/dev/null 2>&1; then
-      AWS_CODEARTIFACT_AUTH_TOKEN="$(aws codeartifact get-authorization-token \
-        --duration-seconds "$((10 * 60 * 60))" \
-        --domain "$(ncd config aws.domain)" \
-        --domain-owner "$(ncd config aws.domain_owner)" \
-        --query authorizationToken \
-        --output text)"
-
-      if test -n "${AWS_CODEARTIFACT_AUTH_TOKEN}"; then
-        echo -n "${AWS_CODEARTIFACT_AUTH_TOKEN}" >"${AWS_CODEARTIFACT_TOKEN_CACHE_FILE}"
-      fi
-    fi
-  fi
-
-  cat "${AWS_CODEARTIFACT_TOKEN_CACHE_FILE}"
-}
-
-# ncd aws apigateway
-ncd_aws_apigateway() {
-  ncd_aws_login
-
-  __ncd_cmd "aws apigateway" "$@"
-}
-
-# ncd aws login
-ncd_aws_login() {
-  if ! aws sts get-caller-identity --query "Account" >/dev/null 2>&1; then
-    aws sso login
+  if test -e "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off"; then
+    opti-cmp aws codeartifact auth-token --no-refresh
+  else
+    opti-cmp aws codeartifact auth-token
   fi
 }
 
@@ -749,7 +173,7 @@ ncd_aws() {
 ncd_on_aws() {
   echo_err "Checking AWS Login Status..."
 
-  ncd aws login
+  opti-cmp aws auth login
 
   rm -f "${XDG_CACHE_HOME}/newscred_aws_codeartifact_off"
 
@@ -763,12 +187,16 @@ ncd_off_aws() {
 }
 
 ncd_on_docker() {
-  echo "Checking Docker..."
-
+  echo
+  #   echo "Checking Docker..."
+  #
+  osascript <<EOL
+   tell application "Docker Desktop" to activate
+EOL
   osascript >/dev/null <<EOL
-  if not (application "Docker" is running) then
-    tell application "Docker" to activate
-  end if
+    if not (application "Docker" is running) then
+      tell application "Docker" to activate
+    end if
 EOL
 }
 
@@ -809,10 +237,14 @@ ncd_on_vpn() {
       click
       tell menu 1
         click
-        if (menu item "Connect" exists) or not (menu item "${profile_name}" exists) then
-          tell menu item 3
+        if not (menu item "${profile_name}" exists) then
+          tell menu item 2
             click
             click menu item "${profile_name}" of menu 1
+          end tell
+        else if (menu item "Connect" exists) then
+          tell menu item 3
+            click
           end tell
         else
           key code 53 -- <esc> close menu
@@ -845,10 +277,6 @@ ncd_off_vpn() {
 EOL
 }
 
-ncd_off_repo-window() {
-  __ncd_untag_current_repo_window
-}
-
 # ncd on
 ncd_on() {
   ncd_on_vpn
@@ -864,171 +292,6 @@ ncd_off() {
   ncd_off_repo-window
   if __ncd_is_inside_workspace_repo; then
     cd "${HOME}"
-  fi
-}
-
-__ncd_dc_list_commands() {
-  ncd_dc --help | sed '1,/Commands:/d' | sed '/^$/,$d' | sed 's/^  //' | cut -d' ' -f1
-}
-
-# ncd dc
-ncd_dc() {
-  __pyenv_init
-  __pyenv_virtualenv_activate localdev
-
-  local cmd="${1:-}"
-  shift || true
-
-  if test -z "${cmd}"; then
-    cmd="$(__ncd_dc_list_commands | fzf --header=Command)"
-  fi
-
-  local args=()
-  local containers=()
-
-  case "${cmd}" in
-  build | up | logs | restart | shell)
-    while (("$#")); do
-      case "${1}" in
-      *)
-        if __ncd_is_container "${1}"; then
-          containers+=("${1}")
-        else
-          args+=("${1}")
-        fi
-        shift
-        ;;
-      esac
-    done
-    if test "${#containers[@]}" -eq 0; then
-      containers+=("$(__ncd_current_repo)")
-    fi
-    ;;
-  *)
-    while (("$#")); do
-      args+=("${1}")
-      shift
-    done
-    ;;
-  esac
-
-  case "${cmd}" in
-  logs)
-    if test "${#args[@]}" -eq 0; then
-      args+=("-f" "--tail" "1000")
-    fi
-    if test "${#containers[@]}" -eq 1; then
-      args+=("--no-log-prefix")
-    fi
-    ;;
-  esac
-
-  case "${cmd}" in
-  build | up | logs | restart | shell)
-    exec nc-docker ${cmd} "${args[@]}" "${containers[@]}"
-    ;;
-  *)
-    exec nc-docker ${cmd} "${args[@]}"
-    ;;
-  esac
-}
-
-# ncd list container
-ncd_list_container() {
-  assert_command rq
-  cat "$(ncd workspace)/docker-compose.yml" | rq --input-yaml | jq -r '.services | keys | .[]'
-}
-
-# ncd list repo
-ncd_list_repo() {
-  find "$(ncd workspace)" -maxdepth 2 -type d -name '.git' | xargs dirname | xargs -n1 basename
-}
-
-# ncd list repo-window
-ncd_list_repo-window() {
-  local -a windows=()
-
-  while IFS= read -r window; do
-    if test -n "${window}"; then
-      local window_id="$(echo "${window}" | awk '{ print $2 }')"
-      local tag="$(tmux show-option -w -t "${window_id}" -qv '@ncd_repo_window')"
-      if [[ -n "${tag}" ]]; then
-        windows+=("${tag}")
-      fi
-    fi
-  done <<<"$(tmux list-windows -F '#{window_active} #{window_id} #W')"
-
-  if ((${#windows[@]})); then
-    printf '%s\n' "${windows[@]}"
-  fi
-}
-
-# ncd list
-ncd_list() {
-  __ncd_cmd "list" "$@"
-}
-
-__ncd_untag_current_repo_window() {
-  if test -n "$(tmux show-option -w -qv '@ncd_repo_window')"; then
-    tmux set-option -w -u '@ncd_repo_window'
-    tmux set-option -w automatic-rename on
-  fi
-}
-
-# ncd repo [repo-name]
-ncd_repo() {
-  local repo="${1:-}"
-  [[ -n "${repo}" ]] && shift
-
-  if [[ -z "${repo}" ]]; then
-    if __ncd_is_inside_workspace_repo; then
-      # already inside workspace repo
-      local -r curr_tag="$(tmux show-option -w -qv '@ncd_repo_window')"
-      local -r curr_repo="$(__ncd_current_repo)"
-      if [[ -z "${curr_tag}" ]] || [[ "${curr_tag}" != "${curr_repo}" ]]; then
-        # current window is untagged or tagged for a different repo
-        __ncd_untag_current_repo_window
-        repo="${curr_repo}"
-      fi
-    fi
-  fi
-
-  if [[ -z "${repo}" ]]; then
-    repo="$(ncd list:repo-window | fzf --exit-0)" || true
-  fi
-
-  if [[ -z "${repo}" ]]; then
-    repo="$(ncd list:repo | fzf)" || true
-  fi
-
-  assert_val "${repo}" "missing repo"
-  assert_dir "$(ncd workspace)/${repo}" "invalid repo"
-
-  # if already tagged, jump to window
-  while IFS= read -r window; do
-    if test -n "${window}"; then
-      local window_id="$(echo "${window}" | awk '{ print $2 }')"
-      if [[ "${repo}" = "$(tmux show-option -w -t "${window_id}" -qv '@ncd_repo_window')" ]]; then
-        tmux select-window -t "${window_id}"
-        exit 0
-      fi
-    fi
-  done <<<"$(tmux list-windows -F '#{window_active} #{window_id} #W')"
-
-  local -r repo_path="$(ncd workspace)/${repo}"
-  local -r window_name=":${repo}"
-
-  if [[ -z "$(tmux show-option -w -qv '@ncd_repo_window')" ]] && __ncd_is_inside_workspace_repo; then
-    # current window is untagged and already inside workspace rpeo
-    if [[ "${PWD}" != "${repo_path}" ]]; then
-      tmux send-keys "cd ${repo_path} && clear" Enter
-    fi
-    tmux rename-window "${window_name}"
-    tmux set-option -w '@ncd_repo_window' "${repo}"
-  else
-    # current window is already tagged or outside workspace
-    local window_id="$(tmux new-window -n "${window_name}" -c "${repo_path}" -P -F '#{window_id}')"
-    tmux set-option -w -t "${window_id}" '@ncd_repo_window' "${repo}"
   fi
 }
 
@@ -1197,241 +460,68 @@ ncd_es() {
   __ncd_cmd "es" "$@"
 }
 
-# ncd git pr-sync
-ncd_git_pr-sync() {
-  assert_command gh
-
-  local -r pr_link="${1:-}"
-  assert_val "${pr_link}" "missing pr link"
-  shift
-
-  if ! [[ "${pr_link}" =~ ^https://github.com/newscred/cmp-client/pull/.* ]]; then
-    echo "invalid pr link: ${pr_link}"
-    exit 1
-  fi
-
-  local -r pr_number="${pr_link##*/}"
-  local -r sync_pr_branch="sync-pr-${pr_number}"
-  local -r current_branch="$(git branch --show-current)"
-
-  local -r pr_blob="$(gh pr view "${pr_link}" --json mergedAt,number,title,body)"
-
-  if [[ "${current_branch}" != "${sync_pr_branch}" ]]; then
-    local commits_blob
-
-    if [[ "$(echo "${pr_blob}" | jq -r '.mergedAt')" = "null" ]]; then
-      read -p "PR not merged yet. Are you sure to continue? [yN] " -n 1 -r
-      case ${REPLY} in
-      y | Y) echo ;;
-      *) exit 1 ;;
-      esac
-
-      commits_blob="$(gh api graphql --paginate -f query='
-      query {
-        repository(owner: "newscred", name:"cmp-client") {
-          pullRequest(number: '${pr_number}') {
-            commits(first: 100) {
-              nodes {
-                commit {
-                  oid
-                  message
-                }
-              }
-            }
-          }
-        }
-      }
-      ' --jq ".data.repository.pullRequest.commits.nodes[] | map({ commit: .oid, message: .message })")"
-    else
-      local -r merged_at="$(echo "${pr_blob}" | jq -r '.mergedAt')"
-      local -r since="$(date --date="${merged_at} -30 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
-      local -r until="$(date --date="${merged_at}  +90 minutes" -u +"%Y-%m-%dT%H:%M:%SZ")"
-
-      local -r jq_query=".data.repository.defaultBranchRef.target.history.nodes | map(select(.associatedPullRequests.nodes[0].number == ${pr_number})) | reverse | map({ commit: .oid, message: .message })"
-      commits_blob="$(gh api graphql --paginate -f query='
-      query ($since: GitTimestamp!, $until: GitTimestamp!, $endCursor: String) {
-        repository(name: "cmp-client", owner: "newscred") {
-          defaultBranchRef {
-            name
-            target {
-              ... on Commit {
-                id
-                history(first: 100, after: $endCursor, since: $since, until: $until) {
-                  nodes {
-                    message
-                    oid
-                    associatedPullRequests(first: 1) {
-                      nodes {
-                        title
-                        permalink
-                        number
-                      }
-                    }
-                  }
-                  pageInfo {
-                    endCursor
-                    hasNextPage
-                  }
-                }
-              }
-            }
-          }
-        }
-      }' -F since="${since}" -F until="${until}" --jq "${jq_query}")"
-    fi
-
-    if [[ -z "${commits_blob}" ]] || [[ "${commits_blob}" = "[]" ]]; then
-      echo "Failed to extract commits"
-      exit 1
-    fi
-
-    echo "Switching to cmp-client:master"
-    git checkout master
-    echo
-    echo "Fetching latest commits..."
-    ncd git sync
-    echo
-
-    echo "Switching to cmp-client-stable:master"
-    git checkout stable-master
-    echo
-    echo "Fetching latest commits..."
-    ncd git sync
-    echo
-
-    echo "Creating branch: ${sync_pr_branch}"
-    git checkout -B "${sync_pr_branch}"
-    echo
-
-    echo "Cherry-Picking Commits:"
-    echo "${commits_blob}" | jq -r '.[] | "* " + .commit[0:10] + " " + .message'
-    echo
-    git cherry-pick $(echo "${commits_blob}" | jq -r '.[] | .commit' | xargs)
-    echo
-  fi
-
-  echo "Pushing branch: ${sync_pr_branch}"
-  git push -f -u stable-origin "${sync_pr_branch}"
-
-  echo "Creating PR..."
-  local -r sync_pr_title="sync(#${pr_number}) $(echo "${pr_blob}" | jq -r '.title')"
-  local -r ticket_link="$(echo "${pr_blob}" | jq -r '.body' | grep "TICKET:" | cut -d' ' -f2)"
-  local -r sync_pr_body="$(cat .github/PULL_REQUEST_TEMPLATE.md |
-    sed -e "s/^TICKET:.*$/TICKET: $(echo ${ticket_link} | sed -e 's/\//\\\//g')/" |
-    sed -e ":a;N;\$!ba;s/\(Related PRs:[^-]*\)-[^\n]*/\1- Sync $(echo ${pr_link} | sed -e 's/\//\\\//g')/")"
-  gh --repo newscred/cmp-client-stable pr create --title "${sync_pr_title}" --body "${sync_pr_body}"
-  echo
+ncd_cmp_permissions_gremlin() {
+  local query="$(node -e "console.log(JSON.stringify($(
+    cat <<EOF
+{
+  "gremlin": \`
+g.with("scriptEvaluationTimeout", 0)
+  .V().has("_id", "5f1fd386c728b605839a9bc4")
+  .repeat(
+    __.inE("contained_by", "created_from", "contained_in", "object")
+    .where(__.not(__.outV().has("inherit_permissions", false)))
+    .simplePath()
+    .outV())
+    .until(
+      __.not(__.inE("contained_by", "created_from", "contained_in", "object")))
+  .outE("subject").inV().path()
+  .dedup()
+  .toList()
+  \`
 }
+EOF
+  )).trim().replaceAll(/\\\n */g, ''))")"
 
-ncd_git_default-branch() {
-  for input in "newscred/HEAD" "origin/HEAD"; do
-    local output=""
-    output="$(git rev-parse --abbrev-ref "${input}" 2>/dev/null || true)"
-    if test -z "${output}" || test "${output}" = "${input}"; then
-      git fetch "${input%/*}" --quiet
-      local output="$(git remote set-head "${input%/*}" --auto 2>/dev/null || true)"
-      if test -n "${output}"; then
-        echo "${output}" | cut -d" " -f4
-        return
-      fi
-    else
-      echo "${output#*/}"
-      return
-    fi
-  done
-}
-
-# ncd git sync
-ncd_git_sync() {
-  local current_branch
-  current_branch="$(git branch --show-current)"
-
-  case "${current_branch}" in
-  master | main)
-    git pull newscred "${current_branch}"
-    git push
-    ;;
-  stable-master)
-    git fetch stable-newscred master
-    git reset --hard stable-newscred/master
-    git push -f -u stable-origin stable-master:master
-    ;;
-  *)
-    ncd git rebase --sync
-    ;;
-  esac
-}
-
-# ncd git rebase
-ncd_git_rebase() {
-  local current_branch
-  current_branch="$(git branch --show-current)"
-  local -r default_branch="$(ncd_git_default-branch)"
-  if test -z "${default_branch}"; then
-    exit 1
-  fi
-
-  local base_branch="${default_branch}"
-  if [[ "${current_branch}" = sync-* ]]; then
-    base_branch="stable-master"
-  fi
-
-  local do_sync="false"
-  while (("$#")); do
-    case "$1" in
-    --sync)
-      do_sync="true"
-      shift
-      ;;
-    *)
-      shift
-      ;;
-    esac
+  local args=()
+  for arg in "$@"; do
+    args+=("${arg}")
   done
 
-  case "${current_branch}" in
-  main | master | stable-master)
-    echo "current on default branch: ${current_branch}"
-    ;;
-  *)
-    if [[ "${do_sync}" = "true" ]]; then
-      git checkout "${base_branch}"
-      ncd git sync
-      git checkout "${current_branch}"
-    fi
-    git rebase -i ${base_branch}
-    ;;
-  esac
+  NEPTUNE_GREMLIN_URL="https://test-permissions-instance-1.cqxxwhw2qsmy.us-east-1.neptune.amazonaws.com:8182/gremlin"
+
+  cat <<EOF >/tmp/ncd_cmp_permissions_gremlin_script
+#!/bin/bash
+
+rm -f /tmp/ncd_cmp_permissions_gremlin_script
+
+if ! type curl >/dev/null 2>&1; then
+  apt-get -qq update >/dev/null 2>&1
+  apt-get -qq install curl >/dev/null 2>&1
+fi
+
+#export NEPTUNE_GREMLIN_URL=\$(cat /opt/permissions/conf/permissions.json | grep DB_URL | cut -d'"' -f4 | sed -e 's/^wss/https/')
+export NEPTUNE_GREMLIN_URL="${NEPTUNE_GREMLIN_URL}"
+
+curl "\${NEPTUNE_GREMLIN_URL}" --connect-timeout 3600 -X POST -d '${query}'
+EOF
+
+  chmod +x /tmp/ncd_cmp_permissions_gremlin_script
+
+  export NCD_K8S_NAMESPACE=permissions$ NCD_K8S_POD=permissions- NCD_K8S_CONTAINER=permissions$
+
+  ncd k8s cp /tmp/ncd_cmp_permissions_gremlin_script :/tmp/ncd_cmp_permissions_gremlin_script
+
+  NCD_K8S_EXEC_CMD="/tmp/ncd_cmp_permissions_gremlin_script" ncd k8s exec
 }
 
-# ncd git prepare-remote
-ncd_git_prepare-remote() {
-  local -r curr_repo="$(basename "$(git rev-parse --show-toplevel)")"
-
-  local -A remote_url_map
-  remote_url_map["newscred"]="git@github.com:newscred/${curr_repo}.git"
-  remote_url_map["origin"]="git@github.com:${GITHUB_USERNAME}/${curr_repo}.git"
-  if [[ "${curr_repo}" = "cmp-client" ]]; then
-    remote_url_map["stable-newscred"]="git@github.com:newscred/${curr_repo}-stable.git"
-    remote_url_map["stable-origin"]="git@github.com:${GITHUB_USERNAME}/${curr_repo}-stable.git"
-  fi
-
-  local remote_url
-  for remote in ${!remote_url_map[@]}; do
-    remote_url="$(git remote get-url "${remote}" 2>/dev/null || true)"
-    if test -z "${remote_url}"; then
-      git remote add "${remote}" "${remote_url_map["${remote}"]}"
-    elif test "${remote_url}" != "${remote_url_map["${remote}"]}"; then
-      git remote set-url "${remote}" "${remote_url_map["${remote}"]}"
-    fi
-    printf "%15s %s\n" "${remote}" "$(git remote get-url "${remote}")"
-  done
+# ncd cmp permissions
+ncd_cmp_permissions() {
+  __ncd_cmd "cmp_permissions" "$@"
 }
 
-# ncd git
-ncd_git() {
-  __ncd_assert_inside_workspace_repo
-  __ncd_cmd "git" "$@"
+# ncd cmp
+ncd_cmp() {
+  __ncd_cmd "cmp" "$@"
 }
 
 # ncd py venv-init

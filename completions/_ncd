@@ -10,72 +10,6 @@ __ncd_caching_policy() {
   (( ${#oldp} ))
 }
 
-__ncd_repo_names() {
-  integer ret=1
-
-  if ! zstyle -t ":completion:${curcontext}:" cache-policy; then
-    zstyle ":completion:${curcontext}:" cache-policy __ncd_caching_policy
-  fi
-
-  local cache_name="_ncd_repo_names"
-
-  if ( [[ ${(P)+cache_name} -eq 0 ]] || _cache_invalid "${cache_name#_}" ) \
-    && ! _retrieve_cache "${cache_name#_}"; then
-      _message "listing repo names..."
-      _ncd_repo_names=($(ncd list:repo))
-      _store_cache ${cache_name#_} ${cache_name}
-  fi
-
-  _describe -t repos "repo names" _ncd_repo_names \
-    && ret=0
-
-  return ret
-}
-
-__ncd_dc_containers() {
-  integer ret=1
-
-  if ! zstyle -t ":completion:${curcontext}:" cache-policy; then
-    zstyle ":completion:${curcontext}:" cache-policy __ncd_caching_policy
-  fi
-
-  local cache_name="_ncd_dc_containers"
-
-  if ( [[ ${(P)+cache_name} -eq 0 ]] || _cache_invalid "${cache_name#_}" ) \
-    && ! _retrieve_cache "${cache_name#_}"; then
-      _message "reading docker containers..."
-      _ncd_dc_containers=($(ncd list:container))
-      _store_cache ${cache_name#_} _ncd_dc_containers
-  fi
-
-  _describe -t containers "docker containers" _ncd_dc_containers \
-    && ret=0
-
-  return ret
-}
-
-__ncd_dc_commands() {
-  integer ret=1
-
-  if ! zstyle -t ":completion:${curcontext}:" cache-policy; then
-    zstyle ":completion:${curcontext}:" cache-policy __ncd_caching_policy
-  fi
-
-  local cache_name="_ncd_dc_commands"
-
-  if ( [[ ${(P)+cache_name} -eq 0 ]] || _cache_invalid "${cache_name#_}" ) \
-    && ! _retrieve_cache "${cache_name#_}"; then
-      _message "reading ncd dc commands..."
-      _ncd_dc_commands=(${(f)"$(ncd dc --help | sed '1,/Commands:/d' | sed '/^$/,$d' | sed 's/^  //' | sed 's/^\([^ ]*\) */\1:/g')"})
-      _store_cache ${cache_name#_} _ncd_dc_commands
-  fi
-
-  _describe -t commands "${words[2]} commands" _ncd_dc_commands \
-    && ret=0
-
-  return ret
-}
-
 __ncd_arguments() {
   integer ret=1
 
@@ -97,90 +31,12 @@ __ncd_arguments() {
       case "${state}" in
         scope)
           _ncd_aws_scopes=()
-          _ncd_aws_scopes+=("login" "apigateway" "codeartifact-auth-token")
+          _ncd_aws_scopes+=("codeartifact-auth-token")
           _describe -t scope "scope" _ncd_aws_scopes \
             && ret=0
           ;;
         args)
           case "${words[1]}" in
-            apigateway)
-              local curcontext="${curcontext}" state
-
-              _arguments -C \
-                '1: :->command' \
-                '*:: :->flags' \
-                && ret=0
-
-              case "${state}" in
-                command)
-                  _ncd_aws_apigateway_commands=()
-                  _ncd_aws_apigateway_commands+=("get-api-key" "get-usage-plan" "list-usage-plans" "view-usage-plan" "change-usage-plan" "get-usage" "update-usage")
-                  _describe -t commands "commands" _ncd_aws_apigateway_commands \
-                    && ret=0
-                  ;;
-                flags)
-                  case "${words[1]}" in
-                    get-api-key)
-                      _arguments \
-                        '--region[AWS region]:region:' \
-                        '--api-key[API key value]:api-key:' \
-                        '--refresh[Force refresh cache]' \
-                        && ret=0
-                      ;;
-                    get-usage-plan)
-                      _arguments \
-                        '--region[AWS region]:region:' \
-                        '--key-id[API key ID]:key-id:' \
-                        '--api-key[API key value]:api-key:' \
-                        '--refresh[Force refresh cache]' \
-                        && ret=0
-                      ;;
-                    list-usage-plans)
-                      _arguments \
-                        '--region[AWS region]:region:' \
-                        '--refresh[Force refresh cache]' \
-                        && ret=0
-                      ;;
-                    view-usage-plan)
-                      _arguments \
-                        '--region[AWS region]:region:' \
-                        '--usage-plan-id[Usage plan ID]:usage-plan-id:' \
-                        '--refresh[Force refresh cache]' \
-                        && ret=0
-                      ;;
-                    change-usage-plan)
-                      _arguments \
-                        '--region[AWS region]:region:' \
-                        '--key-id[API key ID]:key-id:' \
-                        '--api-key[API key value]:api-key:' \
-                        '--usage-plan-id[Usage plan ID]:usage-plan-id:' \
-                        && ret=0
-                      ;;
-                    get-usage)
-                      _arguments \
-                        '--region[AWS region]:region:' \
-                        '--usage-plan-id[Usage plan ID]:usage-plan-id:' \
-                        '--key-id[API key ID]:key-id:' \
-                        '--api-key[API key value]:api-key:' \
-                        '--start-date[Start date (YYYY-MM-DD)]:start-date:' \
-                        '--end-date[End date (YYYY-MM-DD)]:end-date:' \
-                        '--refresh[Force refresh cache]' \
-                        '--plot[Show usage plot]' \
-                        && ret=0
-                      ;;
-                    update-usage)
-                      _arguments \
-                        '--region[AWS region]:region:' \
-                        '--usage-plan-id[Usage plan ID]:usage-plan-id:' \
-                        '--key-id[API key ID]:key-id:' \
-                        '--api-key[API key value]:api-key:' \
-                        '--refresh[Force refresh cache]' \
-                        && ret=0
-                      ;;
-                  esac
-                  ;;
-              esac
-              ;;
           esac
           ;;
       esac
@@ -191,49 +47,36 @@ __ncd_arguments() {
       _describe -t commands "commands" _ncd_es_commands \
         && ret=0
       ;;
-    dc)
+    cmp)
       local curcontext="${curcontext}" state
 
       _arguments -C \
-        '1: :->command' \
-        '*: :->argument' \
+        '1: :->service' \
+        '*: :->command' \
         && ret=0
 
       case "${state}" in
-        command)
-          __ncd_dc_commands && ret=0
+        service)
+          _ncd_cmp_services=()
+          _ncd_cmp_services+=("permissions")
+          _describe -t services "services" _ncd_cmp_services \
+            && ret=0
           ;;
-        argument)
-          _message "Enter arguments for ncd dc ${words[2]}" && ret=0
+        command)
+          _message "Enter command for cmp ${words[2]}" && ret=0
           case "${words[$CURRENT]}" in
-            -*)
-              ;;
             *)
-              __ncd_dc_containers && ret=0
+              case "${words[2]}" in
+                permissions)
+                  _ncd_cmp_permissions_commands=()
+                  _ncd_cmp_permissions_commands+=("gremlin")
+                  _describe -t commands "commands" _ncd_cmp_permissions_commands \
+                    && ret=0
+              esac
               ;;
           esac
           ;;
       esac
-      ;;
-    git)
-      local curcontext="${curcontext}" state
-
-      _arguments -C \
-        '1: :->command' \
-        && ret=0
-
-      case "${state}" in
-        command)
-          _ncd_git_commands=("default-branch" "pr-sync" "prepare-remote" "rebase" "sync")
-          _describe -t commands "commands" _ncd_git_commands \
-            && ret=0
-          ;;
-      esac
-      ;;
-    list)
-      _ncd_list_things=("container" "repo" "repo-window")
-      _describe -t things "things" _ncd_list_things \
-        && ret=0
       ;;
     k8s)
       _ncd_k8s_commands=()
@@ -248,24 +91,6 @@ __ncd_arguments() {
       _describe -t commands "commands" _ncd_py_commands \
         && ret=0
       ;;
-    repo)
-      local curcontext="${curcontext}" state
-
-      _arguments -C \
-        '1: :->name' \
-        && ret=0
-
-      case "${state}" in
-        name)
-          _ncd_repo_windows=($(ncd list:repo-window))
-
-          _describe -t repo_windows "Repo Windows" _ncd_repo_windows \
-            && ret=0
-
-          __ncd_repo_names && ret=0
-          ;;
-      esac
-      ;;
   esac
 
   return ret
@@ -274,12 +99,9 @@ __ncd_arguments() {
 __ncd_commands() {
   local -a _ncd_commands=()
   _ncd_commands+=("on" "off")
-  _ncd_commands+=("git" "list")
-  _ncd_commands+=("dc" "repo")
   _ncd_commands+=("py" "k8s")
-  _ncd_commands+=("es")
   _ncd_commands+=("aws")
-  _ncd_commands+=("workspace")
+  _ncd_commands+=("es" "cmp")
 
   _describe -t ncd-commands "commands" _ncd_commands
 }
