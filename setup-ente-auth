@@ -12,21 +12,6 @@ move() {
   mv "${src}" "${dest}"
 }
 
-declare pattern
-
-case $OSTYPE in
-darwin*)
-  pattern="ente-cli-v*-darwin-arm64.tar.gz"
-  ;;
-linux*)
-  pattern="ente-cli-v*-linux-amd64.tar.gz"
-  ;;
-*)
-  echo "Unknown OS!"
-  exit 1
-  ;;
-esac
-
 declare -r repo="ente-io/ente"
 
 echo "Searching for latest release..."
